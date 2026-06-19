@@ -117,3 +117,5 @@ Field tiers keep entry fast: **required** = club + distance; **one-tap optional*
 - 2026-06-19 — Accounts: invite/admin-created (no open self-signup); bootstrap admin at first run.
 - 2026-06-19 — v1 screens approved: Log entry, My Bag, Club detail, Gapping, Session history, Dashboard.
 - 2026-06-19 — v1 wires up `manual` shot source only; launch-monitor/GPS deferred (fields reserved).
+- 2026-06-19 — v1 uses `Base.metadata.create_all()` for schema; Alembic deferred until the schema needs to evolve (all v1 fields, incl. reserved ones, defined upfront).
+- 2026-06-19 — Backend plan written: `docs/superpowers/plans/2026-06-19-backend-club-shot-engine.md` (11 tasks). Frontend = separate Plan 2.
