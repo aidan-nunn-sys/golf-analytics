@@ -52,3 +52,26 @@ def test_update_own_unit_preference(client, auth_headers):
     )
     assert resp.status_code == 200
     assert resp.json()["unit_preference"] == "meters"
+
+
+def test_duplicate_email_returns_409(client, auth_headers):
+    resp = client.post(
+        "/admin/users",
+        headers=auth_headers,
+        json={"email": "dupe@example.com", "password": "pw"},
+    )
+    assert resp.status_code == 201
+    resp2 = client.post(
+        "/admin/users",
+        headers=auth_headers,
+        json={"email": "dupe@example.com", "password": "pw"},
+    )
+    assert resp2.status_code == 409
+
+
+def test_authenticated_me_shape(client, auth_headers):
+    resp = client.get("/auth/me", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["email"] == settings.admin_email
+    assert resp.json()["is_admin"] is True
+    assert "password_hash" not in resp.json()
