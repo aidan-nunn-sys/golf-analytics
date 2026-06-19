@@ -13,6 +13,9 @@ dependencies = [
     "pydantic[email]>=2.6",
     "pydantic-settings>=2.2",
     "passlib[bcrypt]>=1.7",
+    # passlib 1.7.4 is incompatible with bcrypt 5.x (hashing raises on the
+    # 72-byte check); cap below 5 so installs/Docker get a working backend.
+    "bcrypt>=4.0,<5",
     "python-jose[cryptography]>=3.3",
     "python-multipart>=0.0.9",
     "pandas>=2.2",
