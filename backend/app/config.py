@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     secret_key: str = "changeme"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
+    admin_email: str = "admin@golf.example.com"
+    admin_password: str = "changeme"
 
 
 settings = Settings()

@@ -46,3 +46,18 @@ def client(db_engine):
     app.dependency_overrides[get_db] = override_get_db
     yield TestClient(app)
     app.dependency_overrides.clear()
+
+
+from app.config import settings
+from app.seed import bootstrap_admin
+
+
+@pytest.fixture
+def auth_headers(client, db_session):
+    bootstrap_admin(db_session)
+    resp = client.post(
+        "/auth/login",
+        data={"username": settings.admin_email, "password": settings.admin_password},
+    )
+    token = resp.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
