@@ -2,8 +2,22 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models import User
+from app.models import Club, User
 from app.security import hash_password
+from app.standard_bag import STANDARD_BAG
+
+
+def seed_standard_bag(db: Session, user_id: int) -> None:
+    for i, spec in enumerate(STANDARD_BAG):
+        db.add(
+            Club(
+                user_id=user_id,
+                label=spec["label"],
+                category=spec["category"],
+                order_index=i,
+            )
+        )
+    db.commit()
 
 
 def create_user(
@@ -22,6 +36,7 @@ def create_user(
     db.add(user)
     db.commit()
     db.refresh(user)
+    seed_standard_bag(db, user.id)
     return user
 
 
