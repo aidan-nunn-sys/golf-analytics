@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 Direction = Literal["left", "straight", "right"]
+Source = Literal["manual", "launch_monitor", "gps"]
 
 
 class ShotOut(BaseModel):
@@ -15,7 +16,7 @@ class ShotOut(BaseModel):
     carry_yards: float
     total_yards: float | None
     direction: Direction
-    source: str
+    source: Source
     created_at: datetime
 
 
@@ -24,7 +25,7 @@ class ShotCreate(BaseModel):
     carry_yards: float
     total_yards: float | None = None
     direction: Direction = "straight"
-    source: str = "manual"
+    source: Source = "manual"
 
 
 class ShotUpdate(BaseModel):
@@ -32,3 +33,4 @@ class ShotUpdate(BaseModel):
     carry_yards: float | None = None
     total_yards: float | None = None
     direction: Direction | None = None
+    source: Source | None = None
