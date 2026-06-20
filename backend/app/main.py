@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.database import SessionLocal, create_db_and_tables
-from app.routers import admin, auth, clubs
+from app.routers import admin, auth, clubs, sessions
 from app.seed import bootstrap_admin
 
 
@@ -22,6 +22,7 @@ app = FastAPI(title="Golf Analytics API", lifespan=lifespan)
 app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(clubs.router)
+app.include_router(sessions.router)
 
 
 @app.get("/health")
