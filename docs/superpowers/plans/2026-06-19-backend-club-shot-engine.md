@@ -1,5 +1,7 @@
 # Backend API — Club & Shot Analysis Engine — Implementation Plan
 
+> **✅ STATUS: COMPLETE (verified 2026-06-30).** All 11 tasks done. 41 deliverable files present; 32 tests pass (full API surface). Docker image builds and the container serves (`/health`, `/docs`). Post-plan fix: bcrypt pinned to `4.0.x` for passlib compatibility (see backend `pyproject.toml`).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the self-hostable JSON API for the v1 Club & Shot Analysis engine — accounts (invite/admin), a club bag, range sessions, manual shot logging, and derived per-club + gapping statistics.
