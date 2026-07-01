@@ -7,6 +7,17 @@ Self-hosted, open-source golf analytics for the owner + friends/family. Small mu
 - **Design / architecture (source of truth):** `docs/superpowers/specs/2026-06-19-golf-analytics-design.md` — vision, the four pillars, stack decisions, data model, and a dated decision log. Append decisions there as they're made.
 - **Backend implementation plan:** `docs/superpowers/plans/2026-06-19-backend-club-shot-engine.md` — task-by-task. Tasks 1–10 are built; Task 11 (packaging) is not.
 
+## Documentation discipline (standing directive)
+
+Document the journey to a working application as we go — the repo should always tell the story of how we got here. This is required, not optional:
+
+- **Every slice follows spec → plan → build.** A feature starts as a dated design spec in `docs/superpowers/specs/`, becomes a dated plan in `docs/superpowers/plans/`, then gets built. No building ahead of an approved spec.
+- **Keep decision logs current.** When a real decision is made (stack, scope, a trade-off, a deferral), append a dated entry to the relevant spec's decision log. Convert relative dates to absolute.
+- **Mark plans done when done.** When a plan is fully implemented and verified, add a ✅ STATUS banner at its top summarizing what was verified (files, tests, what runs).
+- **Docs reflect reality.** If code diverges from a spec, update the spec (or log the divergence) — don't leave docs stale.
+
+See `docs/superpowers/README.md` for the full convention.
+
 ## Build order (pillars, one slice at a time)
 
 1. **Club & shot analysis** (range engine) — *v1, the foundation.* Built.
