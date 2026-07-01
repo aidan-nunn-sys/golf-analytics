@@ -128,3 +128,4 @@ Launch-monitor import / GPS-measured UI (API fields stay hidden), Pillars 2–4,
 - 2026-06-30 — v1 frontend = the 6 product screens + Login + Settings. Admin user-creation UI deferred (use `/docs`).
 - 2026-06-30 — Tests scoped to `units.ts` + the log-entry form; rest is wiring (YAGNI).
 - 2026-06-30 — Production static-serving strategy (FastAPI mount vs second container) deferred to the implementation plan; CORS only needed if cross-origin is chosen.
+- 2026-06-30 (plan) — Resolved: single-origin. API is served under `/api`; the SPA is served at `/` by FastAPI in production. Client always calls `/api/...`; Vite dev proxies `/api`→`:8000` (strips prefix). This avoids SPA-route/API-route collisions (`/sessions`, `/clubs/:id`) and needs no CORS. Cost: backend routers move under an `/api` prefix and the existing backend tests' paths get the prefix (mechanical) — done in the final plan task.
