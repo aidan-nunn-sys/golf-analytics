@@ -5,7 +5,7 @@
  * This module converts between yards and the user's preferred display unit.
  */
 
-export type DisplayUnit = "yards" | "meters";
+export type Unit = "yards" | "meters";
 
 /**
  * Conversion factor: 1 yard = 0.9144 meters (exact, by definition)
@@ -16,14 +16,11 @@ const YARDS_TO_METERS = 0.9144;
  * Convert a distance in yards to the user's display unit.
  * @param yards - distance in yards (canonical format)
  * @param displayUnit - the unit to display (yards or meters)
- * @returns distance in the display unit
+ * @returns distance in the display unit, rounded to 1 decimal place
  */
-export function yardsToDisplay(yards: number, displayUnit: DisplayUnit): number {
-  if (displayUnit === "yards") {
-    return yards;
-  }
-  // displayUnit === "meters"
-  return Math.round(yards * YARDS_TO_METERS * 10) / 10; // round to 1 decimal place
+export function yardsToDisplay(yards: number, displayUnit: Unit): number {
+  const v = displayUnit === "meters" ? yards * YARDS_TO_METERS : yards;
+  return Math.round(v * 10) / 10; // round to 1 decimal place
 }
 
 /**
@@ -32,12 +29,8 @@ export function yardsToDisplay(yards: number, displayUnit: DisplayUnit): number 
  * @param displayUnit - the unit of the input value
  * @returns distance in yards (canonical format)
  */
-export function displayToYards(value: number, displayUnit: DisplayUnit): number {
-  if (displayUnit === "yards") {
-    return value;
-  }
-  // displayUnit === "meters"
-  return value / YARDS_TO_METERS;
+export function displayToYards(value: number, displayUnit: Unit): number {
+  return displayUnit === "meters" ? value / YARDS_TO_METERS : value;
 }
 
 /**
@@ -45,6 +38,6 @@ export function displayToYards(value: number, displayUnit: DisplayUnit): number 
  * @param displayUnit - the unit to label
  * @returns short label (yd or m)
  */
-export function unitLabel(displayUnit: DisplayUnit): string {
+export function unitLabel(displayUnit: Unit): string {
   return displayUnit === "yards" ? "yd" : "m";
 }

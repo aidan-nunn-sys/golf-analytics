@@ -2,8 +2,9 @@ import { describe, it, expect } from "vitest";
 import { yardsToDisplay, displayToYards, unitLabel } from "./units";
 
 describe("units", () => {
-  it("passes yards through unchanged", () => {
+  it("passes yards through unchanged (with rounding)", () => {
     expect(yardsToDisplay(150, "yards")).toBe(150);
+    expect(yardsToDisplay(150.16, "yards")).toBe(150.2);
     expect(displayToYards(150, "yards")).toBe(150);
   });
 
