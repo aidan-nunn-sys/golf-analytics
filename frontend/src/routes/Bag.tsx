@@ -12,17 +12,30 @@ export function Bag() {
   const del = useDeleteClub();
   const [label, setLabel] = useState("");
   const [category, setCategory] = useState<Category>("iron");
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const onMutationError = (err: unknown) =>
+    setActionError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
 
   return (
     <AsyncBoundary loading={isLoading} error={error}>
       <h1 className="mb-4 text-xl font-semibold">My Bag</h1>
+
+      {actionError && (
+        <div className="mb-4 flex items-center justify-between rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <span>{actionError}</span>
+          <button className="ml-3 font-semibold" onClick={() => setActionError(null)} aria-label="Dismiss error">
+            &times;
+          </button>
+        </div>
+      )}
 
       <form
         className="mb-4 flex gap-2"
         onSubmit={(e) => {
           e.preventDefault();
           if (!label.trim()) return;
-          create.mutate({ label, category, order_index: (clubs?.length ?? 0) });
+          create.mutate({ label, category, order_index: (clubs?.length ?? 0) }, { onError: onMutationError });
           setLabel("");
         }}
       >
@@ -40,13 +53,21 @@ export function Bag() {
             <input
               className={`flex-1 bg-transparent ${c.is_active ? "" : "text-gray-400 line-through"}`}
               defaultValue={c.label}
-              onBlur={(e) => e.target.value !== c.label && update.mutate({ id: c.id, body: { label: e.target.value } })}
+              onBlur={(e) =>
+                e.target.value !== c.label &&
+                update.mutate({ id: c.id, body: { label: e.target.value } }, { onError: onMutationError })
+              }
             />
             <span className="text-xs text-gray-400">{c.category}</span>
-            <button className="text-xs text-gray-500" onClick={() => update.mutate({ id: c.id, body: { is_active: !c.is_active } })}>
+            <button
+              className="text-xs text-gray-500"
+              onClick={() => update.mutate({ id: c.id, body: { is_active: !c.is_active } }, { onError: onMutationError })}
+            >
               {c.is_active ? "Deactivate" : "Activate"}
             </button>
-            <button className="text-xs text-red-600" onClick={() => del.mutate(c.id)}>Delete</button>
+            <button className="text-xs text-red-600" onClick={() => del.mutate(c.id, { onError: onMutationError })}>
+              Delete
+            </button>
           </div>
         ))}
       </div>
