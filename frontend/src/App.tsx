@@ -2,6 +2,7 @@ import { Routes, Route } from "react-router-dom";
 import { RequireAuth } from "./auth/RequireAuth";
 import { Layout } from "./components/Layout";
 import { Login } from "./routes/Login";
+import { Dashboard } from "./routes/Dashboard";
 
 function Placeholder({ name }: { name: string }) {
   return <div className="text-gray-500">{name} — coming soon.</div>;
@@ -18,7 +19,7 @@ export default function App() {
           </RequireAuth>
         }
       >
-        <Route index element={<Placeholder name="Dashboard" />} />
+        <Route index element={<Dashboard />} />
         <Route path="log" element={<Placeholder name="Log" />} />
         <Route path="bag" element={<Placeholder name="Bag" />} />
         <Route path="clubs/:id" element={<Placeholder name="Club detail" />} />
