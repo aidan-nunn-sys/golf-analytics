@@ -103,4 +103,23 @@ describe("Bag", () => {
 
     expect(del.mutate).toHaveBeenCalledWith(1, expect.objectContaining({ onError: expect.any(Function) }));
   });
+
+  it("displays and dismisses error message when mutation fails", async () => {
+    const { create } = setup();
+    const user = userEvent.setup();
+    render(<Bag />);
+
+    create.mutate.mockImplementation((_payload, options) => {
+      options.onError?.(new Error("Failed to create club"));
+    });
+
+    await user.type(screen.getByPlaceholderText("Club label (e.g. 7 Iron)"), "Pitching Wedge");
+    await user.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(screen.getByText("Failed to create club")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Dismiss error" }));
+
+    expect(screen.queryByText("Failed to create club")).not.toBeInTheDocument();
+  });
 });
