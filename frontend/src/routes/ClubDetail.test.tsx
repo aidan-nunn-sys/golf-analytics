@@ -83,11 +83,15 @@ describe("ClubDetail", () => {
     expect(screen.getByText("Shots")).toBeInTheDocument();
     expect(screen.getByText("25")).toBeInTheDocument();
     expect(screen.getByText("Avg carry")).toBeInTheDocument();
-    expect(screen.getByText("143 yd")).toBeInTheDocument();
+    expect(screen.getByText("142.5 yd")).toBeInTheDocument();
     expect(screen.getByText("Median")).toBeInTheDocument();
+    expect(screen.getByText("143 yd")).toBeInTheDocument();
     expect(screen.getByText("Consistency (±)")).toBeInTheDocument();
+    expect(screen.getByText("8.5 yd")).toBeInTheDocument();
     expect(screen.getByText("Min")).toBeInTheDocument();
+    expect(screen.getByText("120 yd")).toBeInTheDocument();
     expect(screen.getByText("Max")).toBeInTheDocument();
+    expect(screen.getByText("158 yd")).toBeInTheDocument();
   });
 
   it("renders direction split line", () => {
