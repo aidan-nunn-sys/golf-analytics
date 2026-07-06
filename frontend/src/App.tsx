@@ -4,6 +4,7 @@ import { Layout } from "./components/Layout";
 import { Login } from "./routes/Login";
 import { Dashboard } from "./routes/Dashboard";
 import { Bag } from "./routes/Bag";
+import { LogEntry } from "./routes/LogEntry";
 
 function Placeholder({ name }: { name: string }) {
   return <div className="text-gray-500">{name} — coming soon.</div>;
@@ -21,7 +22,7 @@ export default function App() {
         }
       >
         <Route index element={<Dashboard />} />
-        <Route path="log" element={<Placeholder name="Log" />} />
+        <Route path="log" element={<LogEntry />} />
         <Route path="bag" element={<Bag />} />
         <Route path="clubs/:id" element={<Placeholder name="Club detail" />} />
         <Route path="gapping" element={<Placeholder name="Gapping" />} />
