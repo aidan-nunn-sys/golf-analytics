@@ -10,15 +10,28 @@ const DIRECTIONS: Direction[] = ["left", "straight", "right"];
 export function LogEntry() {
   const { user } = useAuth();
   const unit = user?.unit_preference ?? "yards";
-  const { data: sessions, isLoading, error } = useSessions();
-  const { data: clubs } = useClubs();
+  const { data: sessions, isLoading: sessionsLoading, error: sessionsError } = useSessions();
+  const { data: clubs, isLoading: clubsLoading, error: clubsError } = useClubs();
   const createSession = useCreateSession();
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const onMutationError = (err: unknown) =>
+    setActionError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
 
   const [sessionId, setSessionId] = useState<number | null>(null);
   const activeSession = sessionId ?? sessions?.[0]?.id ?? null;
 
   return (
-    <AsyncBoundary loading={isLoading} error={error}>
+    <AsyncBoundary loading={sessionsLoading || clubsLoading} error={sessionsError ?? clubsError}>
+      {actionError && (
+        <div className="mb-4 flex items-center justify-between rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <span>{actionError}</span>
+          <button className="ml-3 font-semibold" onClick={() => setActionError(null)} aria-label="Dismiss error">
+            &times;
+          </button>
+        </div>
+      )}
+
       <div className="mb-4 flex items-center gap-2">
         <h1 className="text-xl font-semibold">Log shots</h1>
         <select
@@ -35,7 +48,7 @@ export function LogEntry() {
           onClick={() =>
             createSession.mutate(
               { date: new Date().toISOString().slice(0, 10) },
-              { onSuccess: (s) => setSessionId(s.id) },
+              { onSuccess: (s) => setSessionId(s.id), onError: onMutationError },
             )
           }
         >
@@ -46,7 +59,7 @@ export function LogEntry() {
       {activeSession == null ? (
         <p className="text-gray-500">Start a session to begin logging.</p>
       ) : (
-        <ShotEntry sessionId={activeSession} unit={unit} clubs={clubs ?? []} />
+        <ShotEntry sessionId={activeSession} unit={unit} clubs={clubs ?? []} onMutationError={onMutationError} />
       )}
     </AsyncBoundary>
   );
@@ -56,10 +69,12 @@ function ShotEntry({
   sessionId,
   unit,
   clubs,
+  onMutationError,
 }: {
   sessionId: number;
   unit: "yards" | "meters";
   clubs: { id: number; label: string }[];
+  onMutationError: (err: unknown) => void;
 }) {
   const { data: shots } = useSessionShots(sessionId);
   const logShot = useLogShot(sessionId);
@@ -73,11 +88,14 @@ function ShotEntry({
     e.preventDefault();
     const value = parseFloat(carry);
     if (!clubId || Number.isNaN(value)) return;
-    logShot.mutate({
-      club_id: Number(clubId),
-      carry_yards: displayToYards(value, unit),
-      direction,
-    });
+    logShot.mutate(
+      {
+        club_id: Number(clubId),
+        carry_yards: displayToYards(value, unit),
+        direction,
+      },
+      { onError: onMutationError },
+    );
     setCarry("");
     carryRef.current?.focus();
   }
@@ -123,7 +141,12 @@ function ShotEntry({
             <span className="text-gray-700">
               {yardsToDisplay(s.carry_yards, unit)} {unitLabel(unit)} · {s.direction}
             </span>
-            <button className="text-xs text-red-600" onClick={() => delShot.mutate(s.id)}>Delete</button>
+            <button
+              className="text-xs text-red-600"
+              onClick={() => delShot.mutate(s.id, { onError: onMutationError })}
+            >
+              Delete
+            </button>
           </li>
         ))}
       </ul>

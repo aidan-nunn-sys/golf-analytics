@@ -7,13 +7,13 @@ import { LogEntry } from "./LogEntry";
 
 // Mock auth (meters user, to prove conversion) and the hooks module.
 vi.mock("../auth/AuthContext", () => ({
-  useAuth: () => ({ user: { unit_preference: "yards" }, loading: false }),
+  useAuth: () => ({ user: { unit_preference: "meters" }, loading: false }),
 }));
 
 const logMutate = vi.fn();
 vi.mock("../api/hooks", () => ({
   useSessions: () => ({ data: [{ id: 5, date: "2026-06-30", name: null }], isLoading: false, error: null }),
-  useClubs: () => ({ data: [{ id: 1, label: "7 Iron" }] }),
+  useClubs: () => ({ data: [{ id: 1, label: "7 Iron" }], isLoading: false, error: null }),
   useCreateSession: () => ({ mutate: vi.fn() }),
   useSessionShots: () => ({ data: [] }),
   useLogShot: () => ({ mutate: logMutate }),
@@ -34,7 +34,11 @@ describe("LogEntry add-shot form", () => {
     await userEvent.type(carry, "150");
     await userEvent.click(screen.getByRole("button", { name: "Add" }));
 
-    expect(logMutate).toHaveBeenCalledWith({ club_id: 1, carry_yards: 150, direction: "straight" });
+    // 150 meters / 0.9144 (yards-per-meter factor from units.ts) = 164.041994... yards
+    expect(logMutate).toHaveBeenCalledWith(
+      { club_id: 1, carry_yards: expect.closeTo(164.04, 2), direction: "straight" },
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
     await waitFor(() => expect((carry as HTMLInputElement).value).toBe(""));
   });
 });
