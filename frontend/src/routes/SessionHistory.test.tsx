@@ -276,4 +276,36 @@ describe("SessionHistory", () => {
     const meterText = screen.getByText("7 Iron — 137.6 m straight");
     expect(meterText).toBeInTheDocument();
   });
+
+  it("shows loading state for a session's own shots while they load", async () => {
+    setup();
+    mockedUseSessionShots.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+    } as unknown as ReturnType<typeof useSessionShots>);
+    const user = userEvent.setup();
+    renderWithRouter(<SessionHistory />);
+
+    const firstSessionButton = screen.getByText(/6\/15\/2024.*Morning range/);
+    await user.click(firstSessionButton);
+
+    expect(screen.getByText("Loading shots…")).toBeInTheDocument();
+  });
+
+  it("shows an error for a session's own shots when they fail to load", async () => {
+    setup();
+    mockedUseSessionShots.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error("Failed to load shots"),
+    } as unknown as ReturnType<typeof useSessionShots>);
+    const user = userEvent.setup();
+    renderWithRouter(<SessionHistory />);
+
+    const firstSessionButton = screen.getByText(/6\/15\/2024.*Morning range/);
+    await user.click(firstSessionButton);
+
+    expect(screen.getByText("Failed to load shots")).toBeInTheDocument();
+  });
 });

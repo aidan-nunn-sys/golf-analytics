@@ -35,24 +35,24 @@ export function SessionHistory() {
   const { data: sessions, isLoading, error } = useSessions();
   const [expanded, setExpanded] = useState<number | null>(null);
 
-  const isEmpty = !isLoading && !error && !sessions?.length;
-
   return (
     <AsyncBoundary
       loading={isLoading}
       error={error}
-      isEmpty={isEmpty}
+      isEmpty={sessions?.length === 0}
       emptyText="No sessions yet."
     >
       <ul className="space-y-2">
         {sessions?.map((session) => (
           <li key={session.id}>
-            <div
+            <button
+              type="button"
+              aria-expanded={expanded === session.id}
               onClick={() => setExpanded(expanded === session.id ? null : session.id)}
-              className="cursor-pointer p-3 bg-gray-100 rounded hover:bg-gray-200"
+              className="w-full rounded bg-gray-100 p-3 text-left hover:bg-gray-200"
             >
               {new Date(session.date + "T12:00:00Z").toLocaleDateString()} {session.name ? `— ${session.name}` : ""}
-            </div>
+            </button>
             {expanded === session.id && <SessionShots sessionId={session.id} />}
           </li>
         ))}
