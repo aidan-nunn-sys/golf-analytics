@@ -8,10 +8,7 @@ import { LogEntry } from "./routes/LogEntry";
 import { ClubDetail } from "./routes/ClubDetail";
 import { Gapping } from "./routes/Gapping";
 import { SessionHistory } from "./routes/SessionHistory";
-
-function Placeholder({ name }: { name: string }) {
-  return <div className="text-gray-500">{name} — coming soon.</div>;
-}
+import { Settings } from "./routes/Settings";
 
 export default function App() {
   return (
@@ -30,7 +27,7 @@ export default function App() {
         <Route path="clubs/:id" element={<ClubDetail />} />
         <Route path="gapping" element={<Gapping />} />
         <Route path="sessions" element={<SessionHistory />} />
-        <Route path="settings" element={<Placeholder name="Settings" />} />
+        <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>
   );
