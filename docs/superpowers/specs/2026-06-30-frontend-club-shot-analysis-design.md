@@ -129,3 +129,15 @@ Launch-monitor import / GPS-measured UI (API fields stay hidden), Pillars 2–4,
 - 2026-06-30 — Tests scoped to `units.ts` + the log-entry form; rest is wiring (YAGNI).
 - 2026-06-30 — Production static-serving strategy (FastAPI mount vs second container) deferred to the implementation plan; CORS only needed if cross-origin is chosen.
 - 2026-06-30 (plan) — Resolved: single-origin. API is served under `/api`; the SPA is served at `/` by FastAPI in production. Client always calls `/api/...`; Vite dev proxies `/api`→`:8000` (strips prefix). This avoids SPA-route/API-route collisions (`/sessions`, `/clubs/:id`) and needs no CORS. Cost: backend routers move under an `/api` prefix and the existing backend tests' paths get the prefix (mechanical) — done in the final plan task.
+- 2026-07-06 (Task 13, done) — Plan complete: backend routers mounted on a
+  sub-app at `app.mount("/api", api)`; SPA served from `backend/app/static`
+  (built by a multi-stage Dockerfile) with a client-route fallback to
+  `index.html`. Since the backend now expects the `/api` prefix on every
+  route (including `/api/health`), the Vite dev proxy's `rewrite` (which
+  stripped `/api` before forwarding) was **removed** — the proxy now passes
+  `/api/*` through unchanged, matching prod. Single container on `:8000` via
+  `docker compose up --build`; verified `/api/health` → `{"status":"ok"}` and
+  `/` → SPA `index.html`, both in Docker. Backend: 32 tests pass; frontend:
+  58 tests pass, `tsc -b` clean. One incidental fix: `tests/conftest.py`
+  applies `dependency_overrides` to both `app` and the mounted `api` sub-app,
+  since mounting creates a separate app instance with its own override dict.

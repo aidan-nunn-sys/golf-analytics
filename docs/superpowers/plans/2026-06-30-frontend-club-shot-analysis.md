@@ -1,3 +1,22 @@
+✅ STATUS: COMPLETE (verified 2026-07-06)
+
+All 13 tasks built and verified:
+- Frontend: 58 tests passing (Vitest + RTL, 13 files), `tsc -b --noEmit` clean.
+- Backend: 32 tests passing, all routes moved under `/api` (Task 13), including a
+  fix to `tests/conftest.py` so `dependency_overrides` also apply to the `api`
+  sub-app FastAPI mounts at `/api` (mounting creates a separate app instance
+  with its own override dict — not called out in the Task 13 brief).
+- Docker: `docker compose up --build` builds the SPA and API into one image
+  (`backend/Dockerfile`, multi-stage) and serves both from a single container
+  on `:8000` — `/api/health` returns `{"status":"ok"}`, `/` serves the built
+  SPA `index.html`, and client-side routes (e.g. `/sessions`) fall back to
+  `index.html` on hard refresh.
+
+See `docs/superpowers/specs/2026-06-30-frontend-club-shot-analysis-design.md`
+decision log for the `/api`-prefix + single-container decision.
+
+---
+
 # Frontend (Pillar 1 — Club & Shot Analysis) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
