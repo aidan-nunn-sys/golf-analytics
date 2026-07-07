@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
-from app.main import app
+from app.main import api, app
 
 
 @pytest.fixture
@@ -43,9 +43,14 @@ def client(db_engine):
         finally:
             db.close()
 
+    # The API routes live on the `api` sub-app mounted at /api (see app/main.py),
+    # which has its own dependency_overrides separate from the outer `app` -
+    # override on both so the test DB is actually used.
     app.dependency_overrides[get_db] = override_get_db
+    api.dependency_overrides[get_db] = override_get_db
     yield TestClient(app)
     app.dependency_overrides.clear()
+    api.dependency_overrides.clear()
 
 
 from app.config import settings
@@ -56,7 +61,7 @@ from app.seed import bootstrap_admin
 def auth_headers(client, db_session):
     bootstrap_admin(db_session)
     resp = client.post(
-        "/auth/login",
+        "/api/auth/login",
         data={"username": settings.admin_email, "password": settings.admin_password},
     )
     token = resp.json()["access_token"]

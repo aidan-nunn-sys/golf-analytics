@@ -1,11 +1,11 @@
 def _setup_shots(client, headers, carries):
-    sid = client.post("/sessions", headers=headers, json={"date": "2026-06-19"}).json()[
+    sid = client.post("/api/sessions", headers=headers, json={"date": "2026-06-19"}).json()[
         "id"
     ]
-    club_id = client.get("/clubs", headers=headers).json()[0]["id"]
+    club_id = client.get("/api/clubs", headers=headers).json()[0]["id"]
     for c in carries:
         client.post(
-            f"/sessions/{sid}/shots",
+            f"/api/sessions/{sid}/shots",
             headers=headers,
             json={"club_id": club_id, "carry_yards": c, "direction": "straight"},
         )
@@ -14,7 +14,7 @@ def _setup_shots(client, headers, carries):
 
 def test_club_stats_endpoint(client, auth_headers):
     club_id = _setup_shots(client, auth_headers, [200.0, 210.0, 220.0])
-    resp = client.get(f"/clubs/{club_id}/stats", headers=auth_headers)
+    resp = client.get(f"/api/clubs/{club_id}/stats", headers=auth_headers)
     assert resp.status_code == 200
     assert resp.json()["count"] == 3
     assert resp.json()["avg_carry"] == 210.0
@@ -22,7 +22,7 @@ def test_club_stats_endpoint(client, auth_headers):
 
 def test_dashboard_endpoint(client, auth_headers):
     _setup_shots(client, auth_headers, [200.0, 210.0])
-    resp = client.get("/stats/dashboard", headers=auth_headers)
+    resp = client.get("/api/stats/dashboard", headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
     assert "clubs" in body and "gapping" in body

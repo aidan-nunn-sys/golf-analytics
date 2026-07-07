@@ -1,10 +1,18 @@
+# --- build the SPA ---
+FROM node:20-slim AS web
+WORKDIR /web
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+# --- python runtime ---
 FROM python:3.12-slim
 WORKDIR /app
-COPY pyproject.toml ./
-COPY app ./app
+COPY backend/pyproject.toml ./
+COPY backend/app ./app
 RUN pip install --no-cache-dir .
-# Run as non-root; own /data so the SQLite volume is writable (named volume
-# inherits this ownership on first creation).
+COPY --from=web /web/dist ./app/static
 RUN useradd --create-home appuser && mkdir -p /data && chown appuser:appuser /data
 USER appuser
 EXPOSE 8000
