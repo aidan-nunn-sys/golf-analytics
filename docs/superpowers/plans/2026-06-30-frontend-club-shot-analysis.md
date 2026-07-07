@@ -12,6 +12,16 @@ All 13 tasks built and verified:
   SPA `index.html`, and client-side routes (e.g. `/sessions`) fall back to
   `index.html` on hard refresh.
 
+Post-review hardening (2026-07-06): the SPA fallback route's static-file
+lookup resolved the request path without checking it stayed inside the
+static root, allowing `../`-style path traversal to escape it — fixed by
+resolving the candidate and requiring containment before serving. Added a
+root `.dockerignore` (build context is the whole repo since Task 13; without
+it, the web build stage's `COPY frontend/ ./` merges the host's
+`node_modules` — including native `darwin-arm64` bindings — into the
+`npm ci`-installed Linux tree). Both re-verified against a live
+Docker/Colima build.
+
 See `docs/superpowers/specs/2026-06-30-frontend-club-shot-analysis-design.md`
 decision log for the `/api`-prefix + single-container decision.
 
