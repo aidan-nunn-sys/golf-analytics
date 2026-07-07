@@ -49,7 +49,9 @@ if _STATIC.is_dir():
     def spa(full_path: str) -> FileResponse:
         # Serve real files if they exist (favicon, etc.); otherwise index.html
         # so client-side routes like /sessions resolve on hard refresh.
-        candidate = _STATIC / full_path
-        if full_path and candidate.is_file():
+        # full_path is attacker-controlled, so resolve it and confirm it's
+        # still inside _STATIC before serving (blocks ../ path traversal).
+        candidate = (_STATIC / full_path).resolve()
+        if full_path and candidate.is_relative_to(_STATIC) and candidate.is_file():
             return FileResponse(candidate)
         return FileResponse(_STATIC / "index.html")
