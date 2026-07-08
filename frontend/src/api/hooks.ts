@@ -76,17 +76,6 @@ export function useLogShot(sessionId: number) {
     },
   });
 }
-export function useUpdateShot(sessionId: number) {
-  const qc = useQueryClient();
-  const invalidateStats = useStatsInvalidation();
-  return useMutation({
-    mutationFn: ({ id, body }: { id: number; body: Partial<Shot> }) => apiSend<Shot>("PATCH", `/shots/${id}`, body),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: keys.shots(sessionId) });
-      invalidateStats();
-    },
-  });
-}
 export function useDeleteShot(sessionId: number) {
   const qc = useQueryClient();
   const invalidateStats = useStatsInvalidation();

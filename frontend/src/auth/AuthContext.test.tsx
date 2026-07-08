@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./AuthContext";
 import { RequireAuth } from "./RequireAuth";
@@ -24,22 +25,25 @@ const user = {
 };
 
 function renderApp() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter initialEntries={["/protected"]}>
-      <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<div>Login screen</div>} />
-          <Route
-            path="/protected"
-            element={
-              <RequireAuth>
-                <div>Secret content</div>
-              </RequireAuth>
-            }
-          />
-        </Routes>
-      </AuthProvider>
-    </MemoryRouter>,
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={["/protected"]}>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<div>Login screen</div>} />
+            <Route
+              path="/protected"
+              element={
+                <RequireAuth>
+                  <div>Secret content</div>
+                </RequireAuth>
+              }
+            />
+          </Routes>
+        </AuthProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
