@@ -25,6 +25,22 @@ Docker/Colima build.
 See `docs/superpowers/specs/2026-06-30-frontend-club-shot-analysis-design.md`
 decision log for the `/api`-prefix + single-container decision.
 
+Whole-branch review (2026-07-07): a holistic pass across all 13 tasks (cross-task
+consistency, auth end-to-end, security posture, dead code) found no blockers.
+Path traversal fix, `.dockerignore`, XSS/CSRF exposure, and the 401/logout/route-guard
+flow were all confirmed correct. It did surface one real cross-task gap: `AuthContext`
+held `user` in local state, disconnected from the TanStack Query cache that
+`Settings`' profile/unit-preference update actually invalidates — so a saved
+change didn't show up elsewhere (Layout, Dashboard, ClubDetail, etc.) without a
+full reload, and login/logout never cleared the query cache (a stale-data risk
+on a shared browser). Fixed by having `AuthContext` source `user` from the shared
+`["me"]` query and calling `queryClient.clear()` on login/logout. Also removed
+dead code the review flagged: the never-wired `useUpdateShot` hook and leftover
+Vite scaffold files (`App.css`, `react.svg`, `vite.svg`, `hero.png`,
+`public/icons.svg`) untouched since the Task 1 scaffold, plus the default
+"frontend" page `<title>`. Re-verified: 58/58 frontend tests, 32/32 backend
+tests, `tsc -b --noEmit` clean, production build succeeds.
+
 ---
 
 # Frontend (Pillar 1 — Club & Shot Analysis) Implementation Plan

@@ -141,3 +141,14 @@ Launch-monitor import / GPS-measured UI (API fields stay hidden), Pillars 2–4,
   58 tests pass, `tsc -b` clean. One incidental fix: `tests/conftest.py`
   applies `dependency_overrides` to both `app` and the mounted `api` sub-app,
   since mounting creates a separate app instance with its own override dict.
+- 2026-07-07 (whole-branch review) — Final holistic review across all 13 tasks
+  found no security/blocking issues (path traversal, `.dockerignore`, XSS/CSRF,
+  401/logout flow all confirmed sound). One real gap: `AuthContext` kept `user`
+  in local state instead of the TanStack `["me"]` query that `Settings` already
+  invalidates on save, so profile/unit-preference edits didn't propagate to
+  other screens without a reload, and login/logout never cleared the query
+  cache (stale-data risk on a shared browser). Fixed by deriving `user` from
+  the shared query and calling `queryClient.clear()` on login/logout. Also
+  swept leftover Task-1 scaffold (`App.css`, `react.svg`, `vite.svg`,
+  `hero.png`, `public/icons.svg`), the unused `useUpdateShot` hook, and the
+  default page title. Frontend v1 is done.
