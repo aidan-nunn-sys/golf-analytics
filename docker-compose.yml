@@ -1,0 +1,19 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # `:?` makes Compose refuse to start if the var is unset/empty, instead of
+      # booting with a known secret/password. Set these in .env (see backend/.env.example).
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env — see backend/.env.example}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:?set ADMIN_EMAIL in .env}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
+      DATABASE_URL: sqlite:////data/golf.db
+    volumes:
+      - golf-data:/data
+
+volumes:
+  golf-data:

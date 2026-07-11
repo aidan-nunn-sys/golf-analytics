@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "golf-analytics-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "sqlalchemy>=2.0",
+    "pydantic[email]>=2.6",
+    "pydantic-settings>=2.2",
+    "passlib[bcrypt]>=1.7",
+    # passlib 1.7.4 breaks on bcrypt 4.1+ (the `__about__.__version__` read it
+    # uses was removed, logging a trapped traceback) and on bcrypt 5.x (72-byte
+    # check raises). Pin to the 4.0.x line, the last fully passlib-compatible one.
+    "bcrypt>=4.0,<4.1",
+    "python-jose[cryptography]>=3.3",
+    "python-multipart>=0.0.9",
+    "pandas>=2.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

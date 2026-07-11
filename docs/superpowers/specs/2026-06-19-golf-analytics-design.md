@@ -2,7 +2,7 @@
 
 > **Status:** v1 design complete — pending user review. Living doc; decisions appended as made. Directory name `golf-analytics` is a working name and can be renamed before first commit.
 
-_Last updated: 2026-06-19_
+_Last updated: 2026-06-30_
 
 ---
 
@@ -117,5 +117,7 @@ Field tiers keep entry fast: **required** = club + distance; **one-tap optional*
 - 2026-06-19 — Accounts: invite/admin-created (no open self-signup); bootstrap admin at first run.
 - 2026-06-19 — v1 screens approved: Log entry, My Bag, Club detail, Gapping, Session history, Dashboard.
 - 2026-06-19 — v1 wires up `manual` shot source only; launch-monitor/GPS deferred (fields reserved).
+- 2026-06-30 — Backend plan COMPLETE: all 11 tasks done, 32 tests pass, Docker builds & serves. License chosen: MIT. `CLAUDE.md` added at repo root. bcrypt pinned to `4.0.x` (passlib 1.7.4 breaks on bcrypt 4.1+/5.x).
+- 2026-06-30 — Frontend (Plan 2) approach chosen: React SPA (over the noted HTMX fallback). Stack locked: React + Vite + TypeScript, Tailwind CSS, TanStack Query, React Router; auth token in `localStorage`; Vite dev proxy to the API (no CORS in dev).
 - 2026-06-19 — v1 uses `Base.metadata.create_all()` for schema; Alembic deferred until the schema needs to evolve (all v1 fields, incl. reserved ones, defined upfront).
 - 2026-06-19 — Backend plan written: `docs/superpowers/plans/2026-06-19-backend-club-shot-engine.md` (11 tasks). Frontend = separate Plan 2.

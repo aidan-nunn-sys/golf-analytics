@@ -1,5 +1,7 @@
 # Backend API — Club & Shot Analysis Engine — Implementation Plan
 
+> **✅ STATUS: COMPLETE (verified 2026-06-30).** All 11 tasks done. 41 deliverable files present; 32 tests pass (full API surface). Docker image builds and the container serves (`/health`, `/docs`). Post-plan fix: bcrypt pinned to `4.0.x` for passlib compatibility (see backend `pyproject.toml`).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the self-hostable JSON API for the v1 Club & Shot Analysis engine — accounts (invite/admin), a club bag, range sessions, manual shot logging, and derived per-club + gapping statistics.
@@ -195,16 +197,20 @@ def get_db() -> Generator[Session, None, None]:
 Replace the file with:
 
 ```python
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from app.database import create_db_and_tables
 
-app = FastAPI(title="Golf Analytics API")
 
-
-@app.on_event("startup")
-def on_startup() -> None:
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     create_db_and_tables()
+    yield
+
+
+app = FastAPI(title="Golf Analytics API", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -617,25 +623,29 @@ def create_account(
 - [ ] **Step 6: Update `app/main.py`** to include routers and bootstrap the admin
 
 ```python
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from app.database import SessionLocal, create_db_and_tables
 from app.routers import admin, auth
 from app.seed import bootstrap_admin
 
-app = FastAPI(title="Golf Analytics API")
-app.include_router(auth.router)
-app.include_router(admin.router)
 
-
-@app.on_event("startup")
-def on_startup() -> None:
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     create_db_and_tables()
     db = SessionLocal()
     try:
         bootstrap_admin(db)
     finally:
         db.close()
+    yield
+
+
+app = FastAPI(title="Golf Analytics API", lifespan=lifespan)
+app.include_router(auth.router)
+app.include_router(admin.router)
 
 
 @app.get("/health")
@@ -1845,8 +1855,8 @@ git commit -m "Add stats and dashboard endpoints"
 FROM python:3.12-slim
 WORKDIR /app
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir -e .
 COPY app ./app
+RUN pip install --no-cache-dir .
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
