@@ -2,7 +2,7 @@
 
 > **Status:** v1 design complete — pending user review. Living doc; decisions appended as made. Directory name `golf-analytics` is a working name and can be renamed before first commit.
 
-_Last updated: 2026-06-30_
+_Last updated: 2026-07-11_
 
 ---
 
@@ -100,7 +100,7 @@ Field tiers keep entry fast: **required** = club + distance; **one-tap optional*
 
 ## 8. Roadmap (later slices, each its own spec → plan → build)
 - **Pillar 1.1** — launch-monitor import (CSV) + GPS-measured shots.
-- **Pillar 2** — on-course GPS tracking & OpenStreetMap course management.
+- **Pillar 2** — on-course GPS tracking & OpenStreetMap course management. Spec: `docs/superpowers/specs/2026-07-11-on-course-gps-course-management-design.md`.
 - **Pillar 3** — score & stats logging (backlog rounds, handicap, GIR/fairways/putts).
 - **Pillar 4** — learning profile, club recommendations, strokes gained.
 
@@ -121,3 +121,4 @@ Field tiers keep entry fast: **required** = club + distance; **one-tap optional*
 - 2026-06-30 — Frontend (Plan 2) approach chosen: React SPA (over the noted HTMX fallback). Stack locked: React + Vite + TypeScript, Tailwind CSS, TanStack Query, React Router; auth token in `localStorage`; Vite dev proxy to the API (no CORS in dev).
 - 2026-06-19 — v1 uses `Base.metadata.create_all()` for schema; Alembic deferred until the schema needs to evolve (all v1 fields, incl. reserved ones, defined upfront).
 - 2026-06-19 — Backend plan written: `docs/superpowers/plans/2026-06-19-backend-club-shot-engine.md` (11 tasks). Frontend = separate Plan 2.
+- 2026-07-11 — Pillar 2 (on-course GPS + course management) spec written: `docs/superpowers/specs/2026-07-11-on-course-gps-course-management-design.md`. Scope: OSM-sourced course import via server-side Overpass queries, live GPS round mode (Leaflet + browser geolocation), GPS shot-measuring reusing the existing Shot table, and basic strokes-per-hole score entry (pulled forward from Pillar 3, which still owns fairways/GIR/putts/handicap). Club recommendations stay deferred to Pillar 4.
