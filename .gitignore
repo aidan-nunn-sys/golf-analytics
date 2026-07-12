@@ -29,3 +29,6 @@ dist/
 # Claude Code local settings (machine-specific permissions, not for publishing)
 .claude/settings.local.json
 .worktrees/
+
+# Serena MCP tool config (local, not for publishing)
+.serena/

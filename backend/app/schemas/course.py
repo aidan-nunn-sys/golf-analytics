@@ -9,10 +9,10 @@ class HoleOut(BaseModel):
     id: int
     course_id: int
     number: int
-    par: int | None = None
-    green_lat: float | None = None
-    green_lng: float | None = None
-    hazards: list | None = None
+    par: int | None
+    green_lat: float | None
+    green_lng: float | None
+    hazards: list[dict] | None
 
 
 class HoleCreate(BaseModel):
@@ -20,7 +20,7 @@ class HoleCreate(BaseModel):
     par: int | None = None
     green_lat: float | None = None
     green_lng: float | None = None
-    hazards: list | None = None
+    hazards: list[dict] | None = None
 
 
 class CourseOut(BaseModel):
@@ -28,11 +28,25 @@ class CourseOut(BaseModel):
 
     id: int
     name: str
-    osm_id: str | None = None
+    osm_id: str | None
     import_source: str
-    location_lat: float | None = None
-    location_lng: float | None = None
+    location_lat: float | None
+    location_lng: float | None
     imported_at: datetime
+    holes: list[HoleOut] = []
+
+
+class CourseSearchResult(BaseModel):
+    osm_id: str
+    name: str
+    location_lat: float | None
+    location_lng: float | None
+    hole_count: int
+
+
+class ManualHoleIn(BaseModel):
+    number: int
+    par: int
 
 
 class CourseCreate(BaseModel):
@@ -41,3 +55,4 @@ class CourseCreate(BaseModel):
     import_source: str = "manual"
     location_lat: float | None = None
     location_lng: float | None = None
+    holes: list[ManualHoleIn] | None = None
