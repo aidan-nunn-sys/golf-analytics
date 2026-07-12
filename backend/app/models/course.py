@@ -1,0 +1,32 @@
+from datetime import datetime
+
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, func
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.database import Base
+
+
+class Course(Base):
+    __tablename__ = "courses"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    osm_id: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
+    import_source: Mapped[str] = mapped_column(String, nullable=False, default="manual")
+    location_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    location_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
+    imported_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class Hole(Base):
+    __tablename__ = "holes"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    course_id: Mapped[int] = mapped_column(
+        ForeignKey("courses.id"), index=True, nullable=False
+    )
+    number: Mapped[int] = mapped_column(Integer, nullable=False)
+    par: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    green_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
+    green_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hazards: Mapped[list | None] = mapped_column(JSON, nullable=True)
