@@ -5,14 +5,14 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.database import SessionLocal, create_db_and_tables
+from app.database import SessionLocal, run_migrations
 from app.routers import admin, auth, clubs, sessions, shots, stats
 from app.seed import bootstrap_admin
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_db_and_tables()
+    run_migrations()
     db = SessionLocal()
     try:
         bootstrap_admin(db)

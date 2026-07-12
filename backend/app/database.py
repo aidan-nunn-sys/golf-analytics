@@ -15,11 +15,15 @@ class Base(DeclarativeBase):
     pass
 
 
-def create_db_and_tables() -> None:
-    # Import models so they register on Base.metadata before create_all.
-    from app import models  # noqa: F401
+def run_migrations() -> None:
+    from pathlib import Path
 
-    Base.metadata.create_all(bind=engine)
+    from alembic import command
+    from alembic.config import Config
+
+    cfg = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    cfg.set_main_option("sqlalchemy.url", settings.database_url)
+    command.upgrade(cfg, "head")
 
 
 def get_db() -> Generator[Session, None, None]:
