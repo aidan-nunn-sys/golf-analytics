@@ -11,12 +11,15 @@ class ShotOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    session_id: int
+    session_id: int | None
+    round_id: int | None
+    hole_number: int | None
     club_id: int
     carry_yards: float
     total_yards: float | None
     direction: Direction
     source: Source
+    accuracy: str | None
     created_at: datetime
 
 
@@ -34,3 +37,14 @@ class ShotUpdate(BaseModel):
     total_yards: float | None = None
     direction: Direction | None = None
     source: Source | None = None
+
+
+class RoundShotCreate(BaseModel):
+    club_id: int
+    start_lat: float
+    start_lng: float
+    end_lat: float
+    end_lng: float
+    direction: Direction = "straight"
+    accuracy: str | None = None
+    hole_number: int | None = None

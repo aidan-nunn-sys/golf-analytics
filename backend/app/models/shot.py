@@ -10,9 +10,13 @@ class Shot(Base):
     __tablename__ = "shots"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    session_id: Mapped[int] = mapped_column(
-        ForeignKey("sessions.id"), index=True, nullable=False
+    session_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sessions.id"), index=True, nullable=True
     )
+    round_id: Mapped[int | None] = mapped_column(
+        ForeignKey("rounds.id"), index=True, nullable=True
+    )
+    hole_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     club_id: Mapped[int] = mapped_column(
         ForeignKey("clubs.id"), index=True, nullable=False
     )
