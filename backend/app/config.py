@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./golf.db"
     admin_email: str = "admin@example.com"
     admin_password: str = "changeme"
+    overpass_base_url: str = "https://overpass-api.de/api/interpreter"
 
 
 settings = Settings()
