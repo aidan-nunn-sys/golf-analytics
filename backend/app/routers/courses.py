@@ -57,12 +57,14 @@ def import_course(
             location_lng=payload.location_lng,
         )
         db.add(course)
-        db.commit()
-        db.refresh(course)
+        db.flush()  # obtain course.id without committing
 
-        for h in overpass.fetch_course_holes(payload.osm_id, settings.overpass_base_url):
+        holes_data = overpass.fetch_course_holes(payload.osm_id, settings.overpass_base_url)
+        for h in holes_data:
             db.add(Hole(course_id=course.id, **h))
+
         db.commit()
+        db.refresh(course)  # imported_at is a server_default, needs refresh to populate
         return _course_out(db, course)
 
     if not payload.holes:

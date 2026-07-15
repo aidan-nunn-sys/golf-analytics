@@ -2,6 +2,8 @@
 
 from unittest.mock import patch
 
+import pytest
+
 from app.models import Course, Hole
 
 
@@ -71,6 +73,31 @@ def test_import_course_from_osm(client, auth_headers):
     body = resp.json()
     assert body["import_source"] == "osm"
     assert len(body["holes"]) == 1
+
+
+def test_import_course_rolls_back_on_hole_fetch_failure(client, auth_headers, db_session):
+    """If Overpass fails mid-import, no orphan holeless Course row should persist."""
+    with patch(
+        "app.routers.courses.overpass.fetch_course_holes",
+        side_effect=RuntimeError("overpass 504"),
+    ):
+        with pytest.raises(RuntimeError):
+            client.post(
+                "/api/courses",
+                json={"name": "Broken Links", "osm_id": "way/999"},
+                headers=auth_headers,
+            )
+
+    orphans = db_session.query(Course).filter_by(osm_id="way/999").all()
+    assert orphans == []
+
+    # A retry after the transient failure clears should succeed normally (no
+    # holeless dedupe-return of a broken row, since nothing was persisted).
+    with patch("app.routers.courses.overpass.fetch_course_holes", return_value=[]):
+        retry = client.post(
+            "/api/courses", json={"name": "Broken Links", "osm_id": "way/999"}, headers=auth_headers
+        )
+    assert retry.status_code == 201
 
 
 def test_import_course_dedupes_by_osm_id(client, auth_headers):
