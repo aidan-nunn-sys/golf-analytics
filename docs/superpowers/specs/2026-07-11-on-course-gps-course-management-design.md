@@ -97,3 +97,20 @@ Courses are unauthenticated-read (any logged-in user) but still require auth lik
 - 2026-07-11 — Courses are shared/global across all users on a server (not per-user private data) since a course is real-world reference data, not personal golf data — this is a deliberate, narrow exception to the per-user-isolation convention, which continues to apply to Rounds, Shots, Clubs, and Sessions.
 - 2026-07-13 — `search_courses`'s unbounded global name query times out against the public overpass-api.de instance (confirmed query-cost, not a syntax error — a bbox-bounded variant of the same query succeeds in ~1.6s). Task 6's `GET /courses?search=` endpoint will need a bbox/viewport parameter (or an equivalent scoping constraint) rather than a bare name filter.
 - 2026-07-15 — Task 8's on-course shot logging (`POST /rounds/{id}/shots`) computes `Shot.carry_yards` as the straight-line ground distance between two raw GPS points (start-of-swing → ball-at-rest), i.e. carry + roll combined. Pillar 1's `carry_yards` on range shots is true ball-flight carry (manually entered) — a different physical quantity in the same column. Separately, `backend/app/routers/stats.py::_shots_for_club` INNER JOINs `Shot` to `RangeSession`, so round shots (`session_id IS NULL`) are currently excluded from `/clubs/{id}/stats`, `/stats/gapping`, and `/stats/dashboard` entirely — today this is a silent no-op, not a corruption, but it means on-course shots do **not** yet flow into stats/gapping as originally stated above. **Open decision, not yet made:** should on-course shots feed stats/gapping at all, and if so, does GPS ground-distance get stored in the reserved (currently unused) `total_yards` column instead of `carry_yards`, with a separate query path scoped via `Round.user_id` rather than `RangeSession.user_id`? Deferred — flagging for the user before this branch merges; not addressed by any task in this plan.
+- **2026-07-12** — Introduced Alembic to manage schema changes, starting with this slice
+  (baseline migration + a migration adding `courses`/`holes`/`rounds`/`round_holes` and
+  altering `shots` for nullable `session_id` + new `round_id`/`hole_number`). Chosen over a
+  one-off SQL patch or accepting data loss because the owner's real `golf.db` already has
+  logged range shots. `render_as_batch=True` handles SQLite's inability to `ALTER COLUMN`
+  nullability in place. Existing pre-Alembic databases need a one-time
+  `alembic stamp <baseline_revision>` before their first restart on this version.
+- **2026-07-12** — GPS shot distance is computed server-side: `POST /rounds/{id}/shots`
+  accepts two raw GPS points (start/end) and the backend computes `carry_yards` via a new
+  `haversine_yards()` function, rather than trusting a client-computed value. Keeps distance
+  math authoritative in one place.
+- **2026-07-12** — Overpass hazard-to-hole association (`Hole.hazards`) is left `null` on
+  import. Hole number/par and green-centroid come from documented OSM tag conventions
+  (`golf=hole` `ref`/`par`, `golf=green` matched by shared `ref`) that can be tested with a
+  mock. Hazard-to-hole matching would need spatial nearest-hole logic with no way to write a
+  truthful test for the "correct" answer — deferred rather than shipped unverified. The
+  `hazards` column stays in the schema for a future pass.

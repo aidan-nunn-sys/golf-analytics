@@ -1,5 +1,17 @@
 # Backend: On-course GPS + Course Management (Pillar 2)
 
+> **✅ STATUS (2026-07-15):** Tasks 1–8 built and verified as a working system. Full backend
+> test suite green (54 passed), Alembic migration set applies cleanly to a fresh DB and to a
+> real pre-Alembic dev `golf.db` with existing data intact, `alembic check` reports no
+> model/migration drift, and a boot smoke test against the migrated dev DB confirmed
+> `/api/health` and `/api/auth/login` both serve correctly. **One open product decision is
+> not yet resolved:** GPS round-shots store total ground-distance (carry+roll) in the
+> `carry_yards` column — a different quantity from Pillar 1's flight-carry in that same
+> column — and `stats.py`'s `RangeSession` INNER JOIN currently excludes all round shots from
+> `/clubs/{id}/stats`, `/stats/gapping`, and `/stats/dashboard` (silent no-op today, not
+> corruption). See the 2026-07-15 decision-log entry in the spec for full detail; this needs
+> a decision before merge.
+
 **Spec:** `docs/superpowers/specs/2026-07-11-on-course-gps-course-management-design.md`
 
 ## Goal
