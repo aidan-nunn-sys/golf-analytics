@@ -100,3 +100,49 @@ def test_round_not_visible_to_a_different_user(client, auth_headers, db_session)
     second_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
     resp = client.get(f"/api/rounds/{rid}", headers=second_headers)
     assert resp.status_code == 404
+
+
+def test_log_round_shot_computes_carry_from_gps_points(client, auth_headers, db_session):
+    course = _make_course(db_session)
+    rid = client.post("/api/rounds", json={"course_id": course.id}, headers=auth_headers).json()["id"]
+    clubs = client.get("/api/clubs", headers=auth_headers).json()
+    club_id = clubs[0]["id"]
+
+    resp = client.post(
+        f"/api/rounds/{rid}/shots",
+        json={
+            "club_id": club_id,
+            "start_lat": 36.5,
+            "start_lng": -121.9,
+            "end_lat": 36.501,
+            "end_lng": -121.9,
+            "direction": "straight",
+            "hole_number": 2,
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["round_id"] == rid
+    assert body["hole_number"] == 2
+    assert body["session_id"] is None
+    assert body["source"] == "gps"
+    assert 115 < body["carry_yards"] < 125
+
+
+def test_log_round_shot_defaults_hole_number_to_current_hole(client, auth_headers, db_session):
+    course = _make_course(db_session)
+    rid = client.post("/api/rounds", json={"course_id": course.id}, headers=auth_headers).json()["id"]
+    client.patch(f"/api/rounds/{rid}", json={"current_hole": 3}, headers=auth_headers)
+    club_id = client.get("/api/clubs", headers=auth_headers).json()[0]["id"]
+
+    resp = client.post(
+        f"/api/rounds/{rid}/shots",
+        json={
+            "club_id": club_id,
+            "start_lat": 36.5, "start_lng": -121.9,
+            "end_lat": 36.501, "end_lng": -121.9,
+        },
+        headers=auth_headers,
+    )
+    assert resp.json()["hole_number"] == 3

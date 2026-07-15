@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Course, Hole, Round, RoundHole, User
+from app.models import Club, Course, Hole, Round, RoundHole, Shot, User
 from app.schemas.round import (
     RoundCreate,
     RoundHoleOut,
@@ -14,6 +14,8 @@ from app.schemas.round import (
     RoundOut,
     RoundUpdate,
 )
+from app.schemas.shot import RoundShotCreate, ShotOut
+from app.stats.geo import haversine_yards
 
 router = APIRouter(prefix="/rounds", tags=["rounds"])
 
@@ -129,3 +131,35 @@ def update_round_hole(
     row.strokes = payload.strokes
     db.commit()
     return _round_out(db, r)
+
+
+@router.post(
+    "/{round_id}/shots", response_model=ShotOut, status_code=status.HTTP_201_CREATED
+)
+def create_round_shot(
+    round_id: int,
+    payload: RoundShotCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Shot:
+    r = _owned_round(db, round_id, user)
+    club = db.get(Club, payload.club_id)
+    if club is None or club.user_id != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Club not found")
+    hole_number = payload.hole_number if payload.hole_number is not None else r.current_hole
+    carry_yards = haversine_yards(
+        payload.start_lat, payload.start_lng, payload.end_lat, payload.end_lng
+    )
+    shot = Shot(
+        round_id=round_id,
+        hole_number=hole_number,
+        club_id=payload.club_id,
+        carry_yards=round(carry_yards, 1),
+        direction=payload.direction,
+        source="gps",
+        accuracy=payload.accuracy,
+    )
+    db.add(shot)
+    db.commit()
+    db.refresh(shot)
+    return shot
