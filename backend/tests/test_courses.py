@@ -59,6 +59,19 @@ def test_search_courses_proxies_overpass(client, auth_headers):
     assert resp.json()[0]["osm_id"] == "way/1"
 
 
+def test_search_courses_forwards_bbox(client, auth_headers):
+    with patch(
+        "app.routers.courses.overpass.search_courses", return_value=[]
+    ) as mock_search:
+        client.get(
+            "/api/courses?search=Test&min_lat=1&min_lng=2&max_lat=3&max_lng=4",
+            headers=auth_headers,
+        )
+    mock_search.assert_called_once_with(
+        "Test", mock_search.call_args.args[1], bbox=(1.0, 2.0, 3.0, 4.0)
+    )
+
+
 def test_import_course_from_osm(client, auth_headers):
     with patch(
         "app.routers.courses.overpass.fetch_course_holes",

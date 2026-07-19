@@ -20,10 +20,17 @@ def _centroid(geometry: list[dict]) -> tuple[float, float]:
     return sum(lats) / len(lats), sum(lngs) / len(lngs)
 
 
-def search_courses(query: str, base_url: str) -> list[dict]:
+def search_courses(
+    query: str, base_url: str, bbox: tuple[float, float, float, float] | None = None
+) -> list[dict]:
+    # ponytail: bbox is optional (frontend map viewport isn't built yet). An
+    # unbounded name-only query times out against the public Overpass instance
+    # (confirmed 2026-07-13); bbox-filtered queries succeed in ~1.6s. Wire this
+    # up from the map viewport when the frontend pillar lands.
+    bbox_filter = f"({bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]})" if bbox else ""
     ql = f"""
     [out:json][timeout:25];
-    nwr["leisure"="golf_course"]["name"~"{query}",i];
+    nwr["leisure"="golf_course"]["name"~"{query}",i]{bbox_filter};
     out center;
     """
     data = _post(base_url, ql)

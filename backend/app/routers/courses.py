@@ -30,9 +30,17 @@ def _course_out(db: Session, course: Course) -> CourseOut:
 
 @router.get("", response_model=list[CourseSearchResult])
 def search_courses(
-    search: str, user: User = Depends(get_current_user)
+    search: str,
+    min_lat: float | None = None,
+    min_lng: float | None = None,
+    max_lat: float | None = None,
+    max_lng: float | None = None,
+    user: User = Depends(get_current_user),
 ) -> list[CourseSearchResult]:
-    results = overpass.search_courses(search, settings.overpass_base_url)
+    bbox = None
+    if None not in (min_lat, min_lng, max_lat, max_lng):
+        bbox = (min_lat, min_lng, max_lat, max_lng)
+    results = overpass.search_courses(search, settings.overpass_base_url, bbox=bbox)
     return [CourseSearchResult(**r) for r in results]
 
 
