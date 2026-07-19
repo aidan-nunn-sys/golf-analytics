@@ -28,6 +28,19 @@ def test_search_courses_parses_name_and_center(monkeypatch):
         }
     ]
 
+def test_search_courses_escapes_quotes_in_query(monkeypatch):
+    captured = {}
+
+    def fake_post(base_url, ql):
+        captured["ql"] = ql
+        return {"elements": []}
+
+    monkeypatch.setattr(overpass, "_post", fake_post)
+    overpass.search_courses('foo"]; way(1); out;["bar', "http://fake")
+    assert '\\"' in captured["ql"]
+    assert 'foo"];' not in captured["ql"]
+
+
 def test_fetch_course_holes_matches_green_by_ref(monkeypatch):
     def fake_post(base_url, ql):
         return {

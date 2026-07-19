@@ -28,9 +28,12 @@ def search_courses(
     # (confirmed 2026-07-13); bbox-filtered queries succeed in ~1.6s. Wire this
     # up from the map viewport when the frontend pillar lands.
     bbox_filter = f"({bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]})" if bbox else ""
+    # Escape backslash/quote so a `"` in the search string can't break out of
+    # the QL string literal and inject arbitrary Overpass QL.
+    escaped_query = query.replace("\\", "\\\\").replace('"', '\\"')
     ql = f"""
     [out:json][timeout:25];
-    nwr["leisure"="golf_course"]["name"~"{query}",i]{bbox_filter};
+    nwr["leisure"="golf_course"]["name"~"{escaped_query}",i]{bbox_filter};
     out center;
     """
     data = _post(base_url, ql)
