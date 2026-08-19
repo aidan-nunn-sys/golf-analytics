@@ -47,6 +47,8 @@ const mockShots: Shot[] = [
   {
     id: 101,
     session_id: 1,
+    round_id: null,
+    hole_number: null,
     club_id: 1,
     carry_yards: 150.5,
     total_yards: null,
@@ -57,6 +59,8 @@ const mockShots: Shot[] = [
   {
     id: 102,
     session_id: 1,
+    round_id: null,
+    hole_number: null,
     club_id: 2,
     carry_yards: 145.0,
     total_yards: null,

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiSend } from "./client";
-import type { Club, Dashboard, GapRow, Session, Shot, ClubStats, User } from "./types";
+import type { Club, Course, CourseSearchResult, Dashboard, GapRow, ManualHoleInput, Round, RoundStatus, Session, Shot, ClubStats, User } from "./types";
 
 export const keys = {
   clubs: ["clubs"] as const,
@@ -10,6 +10,10 @@ export const keys = {
   gapping: ["gapping"] as const,
   dashboard: ["dashboard"] as const,
   me: ["me"] as const,
+  courseSearch: (search: string) => ["courseSearch", search] as const,
+  course: (id: number) => ["course", id] as const,
+  rounds: ["rounds"] as const,
+  round: (id: number) => ["round", id] as const,
 };
 
 // Queries
@@ -26,6 +30,17 @@ export const useClubStats = (clubId: number) =>
 export const useGapping = () => useQuery({ queryKey: keys.gapping, queryFn: () => apiGet<GapRow[]>("/stats/gapping") });
 export const useDashboard = () => useQuery({ queryKey: keys.dashboard, queryFn: () => apiGet<Dashboard>("/stats/dashboard") });
 export const useMe = () => useQuery({ queryKey: keys.me, queryFn: () => apiGet<User>("/auth/me") });
+export const useCourseSearch = (search: string) =>
+  useQuery({
+    queryKey: keys.courseSearch(search),
+    queryFn: () => apiGet<CourseSearchResult[]>(`/courses?search=${encodeURIComponent(search)}`),
+    enabled: search.length > 0,
+  });
+export const useCourse = (id: number) =>
+  useQuery({ queryKey: keys.course(id), queryFn: () => apiGet<Course>(`/courses/${id}`) });
+export const useRounds = () => useQuery({ queryKey: keys.rounds, queryFn: () => apiGet<Round[]>("/rounds") });
+export const useRound = (id: number) =>
+  useQuery({ queryKey: keys.round(id), queryFn: () => apiGet<Round>(`/rounds/${id}`) });
 
 // Mutations — invalidate stats-bearing queries after any change that affects them.
 function useStatsInvalidation() {
@@ -92,5 +107,57 @@ export function useUpdateMe() {
   return useMutation({
     mutationFn: (body: { display_name?: string; unit_preference?: string }) => apiSend<User>("PATCH", "/auth/me", body),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.me }),
+  });
+}
+export function useImportCourse() {
+  return useMutation({
+    mutationFn: (body: { name: string; osm_id: string; location_lat: number | null; location_lng: number | null }) =>
+      apiSend<Course>("POST", "/courses", body),
+  });
+}
+export function useCreateManualCourse() {
+  return useMutation({
+    mutationFn: (body: { name: string; holes: ManualHoleInput[] }) => apiSend<Course>("POST", "/courses", body),
+  });
+}
+export function useCreateRound() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { course_id: number }) => apiSend<Round>("POST", "/rounds", body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.rounds }),
+  });
+}
+export function useUpdateRound(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { current_hole?: number; status?: RoundStatus }) => apiSend<Round>("PATCH", `/rounds/${id}`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.round(id) });
+      qc.invalidateQueries({ queryKey: keys.rounds });
+    },
+  });
+}
+export function useUpdateRoundHole(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ number, strokes }: { number: number; strokes: number }) =>
+      apiSend<Round>("PATCH", `/rounds/${id}/holes/${number}`, { strokes }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.round(id) }),
+  });
+}
+export function useLogRoundShot(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      club_id: number;
+      start_lat: number;
+      start_lng: number;
+      end_lat: number;
+      end_lng: number;
+      direction?: "left" | "straight" | "right";
+      accuracy?: string;
+      hole_number?: number;
+    }) => apiSend<Shot>("POST", `/rounds/${id}/shots`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.round(id) }),
   });
 }
