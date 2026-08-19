@@ -2,15 +2,10 @@ import { Link } from "react-router-dom";
 import { useRounds } from "../api/hooks";
 import { useCourse } from "../api/hooks";
 import { AsyncBoundary } from "../components/AsyncBoundary";
+import type { Round } from "../api/types";
 
-function RoundHistoryContent() {
-  const rounds = useRounds();
-
-  if (!rounds.data) {
-    return null;
-  }
-
-  const sorted = [...rounds.data].sort((a, b) => {
+function sortRounds(rounds: Round[]): Round[] {
+  return [...rounds].sort((a, b) => {
     const aIsInProgress = a.status === "in_progress";
     const bIsInProgress = b.status === "in_progress";
 
@@ -20,23 +15,12 @@ function RoundHistoryContent() {
 
     return aIsInProgress ? -1 : 1;
   });
-
-  return (
-    <div className="space-y-4">
-      {sorted.length === 0 ? (
-        <Link to="/courses" className="inline-block text-blue-600 hover:underline">
-          Start a round
-        </Link>
-      ) : (
-        sorted.map((round) => <RoundCard key={round.id} round={round} />)
-      )}
-    </div>
-  );
 }
 
-function RoundCard({ round }: { round: ReturnType<typeof useRounds>["data"][number] }) {
+function RoundCard({ round }: { round: Round }) {
   const course = useCourse(round.course_id);
   const href = round.status === "in_progress" ? `/rounds/${round.id}` : `/rounds/${round.id}/summary`;
+  const displayDate = new Date(round.date + "T12:00:00Z");
 
   if (!course.data) {
     return null;
@@ -46,13 +30,17 @@ function RoundCard({ round }: { round: ReturnType<typeof useRounds>["data"][numb
     <Link
       to={href}
       className="block p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900"
-      aria-label={round.status === "in_progress" ? `In progress on ${course.data.name}` : `${new Date(round.date).toLocaleDateString()} at ${course.data.name}`}
+      aria-label={
+        round.status === "in_progress"
+          ? `In progress on ${course.data.name}`
+          : `${displayDate.toLocaleDateString()} at ${course.data.name}`
+      }
     >
       <div className="flex justify-between items-start">
         <div>
           <p className="font-semibold">{course.data.name}</p>
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            {new Date(round.date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+            {displayDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
           </p>
         </div>
         <div className="text-right">
@@ -65,9 +53,23 @@ function RoundCard({ round }: { round: ReturnType<typeof useRounds>["data"][numb
 }
 
 export function RoundHistory() {
+  const { data: rounds, isLoading, error } = useRounds();
+
   return (
-    <AsyncBoundary>
-      <RoundHistoryContent />
-    </AsyncBoundary>
+    <div className="space-y-4">
+      <AsyncBoundary loading={isLoading} error={error} isEmpty={rounds?.length === 0} emptyText="No rounds yet.">
+        <ul className="space-y-4">
+          {rounds &&
+            sortRounds(rounds).map((round) => (
+              <li key={round.id}>
+                <RoundCard round={round} />
+              </li>
+            ))}
+        </ul>
+      </AsyncBoundary>
+      <Link to="/courses" className="inline-block text-blue-600 hover:underline">
+        Start a round
+      </Link>
+    </div>
   );
 }
