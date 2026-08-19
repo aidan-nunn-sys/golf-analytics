@@ -192,6 +192,27 @@ describe("LiveRound", () => {
     expect(screen.queryByTestId("map")).not.toBeInTheDocument();
   });
 
+  it("resets shot-in-progress state after advancing without logging the shot", async () => {
+    mockGeolocation({ latitude: 36.505, longitude: -121.905, accuracy: 5 });
+    setup();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: "Mark shot start" }));
+    expect(screen.getByRole("button", { name: "I'm at my ball" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Next hole" }));
+
+    expect(screen.getByRole("button", { name: "Mark shot start" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "I'm at my ball" })).not.toBeInTheDocument();
+  });
+
+  it("hides shot-logging UI for a manually-entered course even with geolocation available", () => {
+    mockGeolocation({ latitude: 36.505, longitude: -121.905, accuracy: 5 });
+    setup(round, manualCourse);
+    expect(screen.queryByRole("button", { name: "Mark shot start" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "I'm at my ball" })).not.toBeInTheDocument();
+  });
+
   it("logs a shot on the two-tap flow", async () => {
     mockGeolocation({ latitude: 36.505, longitude: -121.905, accuracy: 5 });
     const { logShot } = setup();

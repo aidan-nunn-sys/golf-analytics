@@ -95,6 +95,12 @@ export function LiveRound() {
     if (!round) return;
     setActionError(null);
     setStrokesInput("");
+    // Clear any in-progress two-tap shot state so it can't leak into the next hole — the route
+    // is keyed on round id, not hole number, so this component doesn't remount on advance.
+    setShotStart(null);
+    setConfirmingShot(false);
+    setClubId("");
+    setDirection("straight");
     if (isLastHole) {
       updateRound.mutate(
         { status: "completed" },
@@ -166,7 +172,7 @@ export function LiveRound() {
             </div>
           )}
 
-          {!denied && navigator.geolocation && position && !confirmingShot && (
+          {showMap && !confirmingShot && (
             <div className="flex gap-2">
               {!shotStart ? (
                 <button onClick={() => setShotStart(position)} className="rounded border px-3 py-1.5 text-sm">
@@ -183,7 +189,7 @@ export function LiveRound() {
             </div>
           )}
 
-          {confirmingShot && (
+          {showMap && confirmingShot && (
             <div className="space-y-2 rounded border bg-white p-3">
               <label className="block text-sm">
                 Club
