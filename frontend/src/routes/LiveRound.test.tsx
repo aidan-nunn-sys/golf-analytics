@@ -198,12 +198,14 @@ describe("LiveRound", () => {
     const user = userEvent.setup();
 
     await user.click(screen.getByRole("button", { name: "Mark shot start" }));
-    expect(screen.getByRole("button", { name: "I'm at my ball" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "I'm at my ball" }));
+    expect(screen.getByRole("button", { name: "Log shot" })).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Next hole" }));
 
     expect(screen.getByRole("button", { name: "Mark shot start" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "I'm at my ball" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Log shot" })).not.toBeInTheDocument();
   });
 
   it("hides shot-logging UI for a manually-entered course even with geolocation available", () => {
