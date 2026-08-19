@@ -51,6 +51,34 @@ describe("CourseNew", () => {
     expect(create.mutate).not.toHaveBeenCalled();
   });
 
+  it("blocks submit when a hole's par is non-numeric", async () => {
+    const { create } = setup();
+    const user = userEvent.setup();
+    render(<CourseNew />, { wrapper: MemoryRouter });
+
+    await user.type(screen.getByPlaceholderText("Course name"), "Backyard Nine");
+    await user.type(screen.getAllByPlaceholderText("Par")[0], "abc");
+    await user.click(screen.getByRole("button", { name: "Create course" }));
+
+    expect(screen.getByText("Every hole needs a par.")).toBeInTheDocument();
+    expect(create.mutate).not.toHaveBeenCalled();
+  });
+
+  it("submits the course name trimmed", async () => {
+    const { create } = setup();
+    const user = userEvent.setup();
+    render(<CourseNew />, { wrapper: MemoryRouter });
+
+    await user.type(screen.getByPlaceholderText("Course name"), "  Pebble  ");
+    await user.type(screen.getAllByPlaceholderText("Par")[0], "4");
+    await user.click(screen.getByRole("button", { name: "Create course" }));
+
+    expect(create.mutate).toHaveBeenCalledWith(
+      { name: "Pebble", holes: [{ number: 1, par: 4 }] },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
   it("submits name and holes when valid", async () => {
     const { create } = setup();
     const user = userEvent.setup();

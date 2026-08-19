@@ -25,13 +25,13 @@ export function CourseNew() {
       setValidationError("Course name is required.");
       return;
     }
-    if (holes.length === 0 || holes.some((h) => !h.par || Number(h.par) <= 0)) {
+    if (holes.length === 0 || holes.some((h) => !h.par || !Number.isFinite(Number(h.par)) || Number(h.par) <= 0)) {
       setValidationError("Every hole needs a par.");
       return;
     }
     setValidationError(null);
     create.mutate(
-      { name, holes: holes.map((h) => ({ number: h.number, par: Number(h.par) })) },
+      { name: name.trim(), holes: holes.map((h) => ({ number: h.number, par: Number(h.par) })) },
       {
         onSuccess: (course) => navigate(`/courses/${course.id}`),
         onError: (err: unknown) =>
