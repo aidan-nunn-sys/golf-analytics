@@ -9,6 +9,7 @@ import { ClubDetail } from "./routes/ClubDetail";
 import { Gapping } from "./routes/Gapping";
 import { SessionHistory } from "./routes/SessionHistory";
 import { Settings } from "./routes/Settings";
+import { CourseSearch } from "./routes/CourseSearch";
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="log" element={<LogEntry />} />
         <Route path="bag" element={<Bag />} />
+        <Route path="courses" element={<CourseSearch />} />
         <Route path="clubs/:id" element={<ClubDetail />} />
         <Route path="gapping" element={<Gapping />} />
         <Route path="sessions" element={<SessionHistory />} />
