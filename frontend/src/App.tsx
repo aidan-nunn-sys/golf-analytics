@@ -11,6 +11,7 @@ import { SessionHistory } from "./routes/SessionHistory";
 import { Settings } from "./routes/Settings";
 import { CourseSearch } from "./routes/CourseSearch";
 import { CourseNew } from "./routes/CourseNew";
+import { CourseDetail } from "./routes/CourseDetail";
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="bag" element={<Bag />} />
         <Route path="courses" element={<CourseSearch />} />
         <Route path="courses/new" element={<CourseNew />} />
+        <Route path="courses/:id" element={<CourseDetail />} />
         <Route path="clubs/:id" element={<ClubDetail />} />
         <Route path="gapping" element={<Gapping />} />
         <Route path="sessions" element={<SessionHistory />} />
