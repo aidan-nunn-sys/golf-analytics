@@ -6,6 +6,7 @@ const links = [
   { to: "/log", label: "Log" },
   { to: "/bag", label: "Bag" },
   { to: "/gapping", label: "Gapping" },
+  { to: "/rounds", label: "Rounds" },
   { to: "/sessions", label: "Sessions" },
   { to: "/settings", label: "Settings" },
 ];
