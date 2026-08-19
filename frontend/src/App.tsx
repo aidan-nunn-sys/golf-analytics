@@ -13,6 +13,7 @@ import { CourseSearch } from "./routes/CourseSearch";
 import { CourseNew } from "./routes/CourseNew";
 import { CourseDetail } from "./routes/CourseDetail";
 import { RoundHistory } from "./routes/RoundHistory";
+import { LiveRound } from "./routes/LiveRound";
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="clubs/:id" element={<ClubDetail />} />
         <Route path="gapping" element={<Gapping />} />
         <Route path="rounds" element={<RoundHistory />} />
+        <Route path="rounds/:id" element={<LiveRound />} />
         <Route path="sessions" element={<SessionHistory />} />
         <Route path="settings" element={<Settings />} />
       </Route>
