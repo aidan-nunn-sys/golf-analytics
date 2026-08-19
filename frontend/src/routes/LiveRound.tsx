@@ -11,6 +11,7 @@ export function LiveRound() {
   const updateHole = useUpdateRoundHole(roundId);
   const navigate = useNavigate();
   const [strokesInput, setStrokesInput] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const holeNumbers = round ? [...round.holes.map((h) => h.hole_number)].sort((a, b) => a - b) : [];
   const currentHole = round?.holes.find((h) => h.hole_number === round.current_hole);
@@ -19,16 +20,43 @@ export function LiveRound() {
 
   const onSaveStrokes = () => {
     if (!round || !strokesInput) return;
-    updateHole.mutate({ number: round.current_hole, strokes: Number(strokesInput) });
-    setStrokesInput("");
+    setActionError(null);
+    const strokes = Number(strokesInput);
+    if (!Number.isInteger(strokes) || strokes <= 0) {
+      setActionError("Enter a valid number of strokes.");
+      return;
+    }
+    updateHole.mutate(
+      { number: round.current_hole, strokes },
+      {
+        onSuccess: () => setStrokesInput(""),
+        onError: (err: unknown) =>
+          setActionError(err instanceof Error ? err.message : "Something went wrong. Please try again."),
+      },
+    );
   };
 
   const onAdvance = () => {
     if (!round) return;
+    setActionError(null);
+    setStrokesInput("");
     if (isLastHole) {
-      updateRound.mutate({ status: "completed" }, { onSuccess: () => navigate(`/rounds/${roundId}/summary`) });
+      updateRound.mutate(
+        { status: "completed" },
+        {
+          onSuccess: () => navigate(`/rounds/${roundId}/summary`),
+          onError: (err: unknown) =>
+            setActionError(err instanceof Error ? err.message : "Something went wrong. Please try again."),
+        },
+      );
     } else {
-      updateRound.mutate({ current_hole: holeNumbers[currentIndex + 1] });
+      updateRound.mutate(
+        { current_hole: holeNumbers[currentIndex + 1] },
+        {
+          onError: (err: unknown) =>
+            setActionError(err instanceof Error ? err.message : "Something went wrong. Please try again."),
+        },
+      );
     }
   };
 
@@ -38,6 +66,14 @@ export function LiveRound() {
         <div className="space-y-4">
           <h1 className="text-lg font-semibold">Hole {currentHole.hole_number}</h1>
           <div className="text-sm text-gray-500">{currentHole.par == null ? "Par —" : `Par ${currentHole.par}`}</div>
+          {actionError && (
+            <div className="flex items-center justify-between rounded border border-red-300 bg-red-50 p-2 text-sm text-red-700">
+              <span>{actionError}</span>
+              <button type="button" aria-label="Dismiss error" onClick={() => setActionError(null)}>
+                ×
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <input
               className="w-24 rounded border px-3 py-1.5 text-sm"

@@ -58,14 +58,38 @@ describe("LiveRound", () => {
     const user = userEvent.setup();
     await user.type(screen.getByPlaceholderText("Strokes"), "5");
     await user.click(screen.getByRole("button", { name: "Save strokes" }));
-    expect(updateHole.mutate).toHaveBeenCalledWith({ number: 1, strokes: 5 });
+    expect(updateHole.mutate).toHaveBeenCalledWith(
+      { number: 1, strokes: 5 },
+      expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
+    );
   });
 
   it("advances to the next hole", async () => {
     const { updateRound } = setup();
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Next hole" }));
-    expect(updateRound.mutate).toHaveBeenCalledWith({ current_hole: 2 });
+    expect(updateRound.mutate).toHaveBeenCalledWith(
+      { current_hole: 2 },
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
+  });
+
+  it("resets the strokes input after advancing without saving", async () => {
+    setup();
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText("Strokes"), "3");
+    expect(screen.getByPlaceholderText("Strokes")).toHaveValue("3");
+    await user.click(screen.getByRole("button", { name: "Next hole" }));
+    expect(screen.getByPlaceholderText("Strokes")).toHaveValue("");
+  });
+
+  it("rejects non-numeric strokes input and shows an error instead of saving", async () => {
+    const { updateHole } = setup();
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText("Strokes"), "abc");
+    await user.click(screen.getByRole("button", { name: "Save strokes" }));
+    expect(updateHole.mutate).not.toHaveBeenCalled();
+    expect(screen.getByText("Enter a valid number of strokes.")).toBeInTheDocument();
   });
 
   it("shows Finish round on the last hole and marks the round completed", async () => {
