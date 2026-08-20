@@ -1,5 +1,11 @@
 # On-Course GPS Frontend (Pillar 2 frontend) Implementation Plan
 
+> **✅ STATUS (2026-07-19):** Tasks 1–9 built and verified — course search/import,
+> manual course entry, course detail with resume-round nudge, round history,
+> live round (strokes + GPS shot logging + map), and scorecard summary. All
+> frontend tests green, `tsc -b --noEmit` clean, production build succeeds.
+> See Task 10's report for what was verified live vs. only by automated tests.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the UI for the already-merged Pillar 2 backend — course search/import, manual course entry, starting and playing a round with live GPS shot logging on a map, strokes entry, and a scorecard — extending the existing React SPA in place.

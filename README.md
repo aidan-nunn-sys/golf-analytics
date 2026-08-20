@@ -51,9 +51,12 @@ alongside the API on the same origin/port (see "Run with Docker" above).
 ## Status
 
 v1 backend: accounts, club bag, range sessions, manual shot logging, derived stats (club detail, gapping, dashboard).
-v1 web client: React/Vite SPA covering login, club bag, sessions, shot logging, and stats dashboards — served single-origin with the API via Docker.
+v1 web client: React/Vite SPA covering login, club bag, sessions, shot logging,
+stats dashboards, and on-course GPS rounds (course search/import, live GPS shot
+logging, scorecards) — served single-origin with the API via Docker.
 
-Roadmap: launch-monitor import; GPS-measured shots; on-course GPS + OpenStreetMap; scores/handicap/round stats; learning profile.
+Roadmap: launch-monitor import; GPS-measured range shots; scores/handicap/round
+stats; learning profile.
 
 ## License
 

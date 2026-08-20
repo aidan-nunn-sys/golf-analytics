@@ -61,9 +61,10 @@ New `api/` additions mirror the existing pattern: types for `Course`,
      `carry_yards` server-side (`haversine_yards`) — the client never
      computes or sends a distance.
 - **Map:** react-leaflet centered on the current hole's green (falls back to
-  tee if no green data), marker for live position. If
-  `course.import_source === "manual"` (no geo data at all), the map is
-  omitted entirely — strokes-only entry.
+  the course's `location_lat`/`location_lng` if the hole has no green data —
+  there's no tee coordinate in the data model to fall back to, corrected
+  during implementation). If `course.import_source === "manual"` (no geo
+  data at all), the map is omitted entirely — strokes-only entry.
 - **Strokes + hole advance:** number input per hole
   (`PATCH /rounds/:id/holes/:number`); "Next hole" advances `current_hole`
   (`PATCH /rounds/:id`); on the last hole the button becomes "Finish round"
@@ -128,3 +129,8 @@ shots as logged), no club stats pulled in.
   cannot be logged at all (only strokes-per-hole), since the backend
   requires GPS coordinates on every `POST /rounds/{id}/shots` call. No
   club-only fallback shot path was added — out of scope for this slice.
+- **2026-07-19** — Corrected §4: the "falls back to tee" map-centering
+  behavior described in the original design was never buildable — `Hole`
+  has no tee coordinate field, only `green_lat`/`green_lng` (confirmed
+  against `backend/app/schemas/course.py::HoleOut` during Task 8). Falls
+  back to the course's `location_lat`/`location_lng` instead.
