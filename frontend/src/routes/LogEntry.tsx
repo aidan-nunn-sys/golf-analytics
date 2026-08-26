@@ -139,7 +139,8 @@ function ShotEntry({
           <li key={s.id} className="flex items-center justify-between rounded border bg-white px-3 py-2">
             <span>{clubLabel(s.club_id)}</span>
             <span className="text-gray-700">
-              {yardsToDisplay(s.carry_yards, unit)} {unitLabel(unit)} · {s.direction}
+              {/* Range-session shots always have carry_yards; only round/GPS shots can be null. */}
+              {yardsToDisplay(s.carry_yards!, unit)} {unitLabel(unit)} · {s.direction}
             </span>
             <button
               className="text-xs text-red-600"

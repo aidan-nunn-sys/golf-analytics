@@ -20,7 +20,9 @@ function SessionShots({ sessionId }: { sessionId: number }) {
     <ul className="space-y-2 pl-4 mt-2">
       {shots.map((shot) => {
         const club = clubsMap.get(shot.club_id);
-        const carry = yardsToDisplay(shot.carry_yards, unit);
+        // Range-session shots are always manually entered with carry_yards
+        // required; only round/GPS shots can have it null.
+        const carry = yardsToDisplay(shot.carry_yards!, unit);
         return (
           <li key={shot.id} className="text-sm">
             {club?.label} — {carry} {unitLabel(unit)} {shot.direction}

@@ -38,7 +38,7 @@ export interface Shot {
   round_id: number | null;
   hole_number: number | null;
   club_id: number;
-  carry_yards: number;
+  carry_yards: number | null;
   total_yards: number | null;
   direction: Direction;
   source: string;
