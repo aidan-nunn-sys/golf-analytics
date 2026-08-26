@@ -127,7 +127,8 @@ def test_log_round_shot_computes_carry_from_gps_points(client, auth_headers, db_
     assert body["hole_number"] == 2
     assert body["session_id"] is None
     assert body["source"] == "gps"
-    assert 115 < body["carry_yards"] < 125
+    assert body["carry_yards"] is None
+    assert 115 < body["total_yards"] < 125
 
 
 def test_log_round_shot_defaults_hole_number_to_current_hole(client, auth_headers, db_session):

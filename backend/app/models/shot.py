@@ -20,7 +20,7 @@ class Shot(Base):
     club_id: Mapped[int] = mapped_column(
         ForeignKey("clubs.id"), index=True, nullable=False
     )
-    carry_yards: Mapped[float] = mapped_column(Float, nullable=False)
+    carry_yards: Mapped[float | None] = mapped_column(Float, nullable=True)
     total_yards: Mapped[float | None] = mapped_column(Float, nullable=True)
     direction: Mapped[str] = mapped_column(String, nullable=False, default="straight")
     source: Mapped[str] = mapped_column(String, nullable=False, default="manual")

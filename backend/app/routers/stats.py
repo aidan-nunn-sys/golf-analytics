@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Club, RangeSession, Shot, User
+from app.models import Club, RangeSession, Round, Shot, User
 from app.schemas.stats import ClubStats, Dashboard, GapRow
 from app.stats.engine import compute_club_stats, compute_gapping
 
@@ -12,12 +12,22 @@ router = APIRouter(tags=["stats"])
 
 
 def _shots_for_club(db: Session, club_id: int, user_id: int) -> list[dict]:
-    rows = db.execute(
+    range_rows = db.execute(
         select(Shot.carry_yards, Shot.direction)
         .join(RangeSession, Shot.session_id == RangeSession.id)
         .where(Shot.club_id == club_id, RangeSession.user_id == user_id)
     ).all()
-    return [{"carry_yards": r.carry_yards, "direction": r.direction} for r in rows]
+    # On-course GPS shots store ground distance (carry + roll) in total_yards,
+    # a different quantity from range shots' flight-carry — see 2026-07-15
+    # decision log entry. Both feed club stats/gapping as a "distance" value.
+    round_rows = db.execute(
+        select(Shot.total_yards, Shot.direction)
+        .join(Round, Shot.round_id == Round.id)
+        .where(Shot.club_id == club_id, Round.user_id == user_id)
+    ).all()
+    return [{"carry_yards": r.carry_yards, "direction": r.direction} for r in range_rows] + [
+        {"carry_yards": r.total_yards, "direction": r.direction} for r in round_rows
+    ]
 
 
 @router.get("/clubs/{club_id}/stats", response_model=ClubStats)
