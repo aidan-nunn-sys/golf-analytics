@@ -147,14 +147,17 @@ def create_round_shot(
     if club is None or club.user_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Club not found")
     hole_number = payload.hole_number if payload.hole_number is not None else r.current_hole
-    carry_yards = haversine_yards(
+    # GPS measures start-of-swing to ball-at-rest, i.e. carry + roll combined —
+    # a different quantity from Pillar 1's manually-entered flight-carry, so it
+    # goes in total_yards, not carry_yards. See 2026-07-15 decision log entry.
+    ground_yards = haversine_yards(
         payload.start_lat, payload.start_lng, payload.end_lat, payload.end_lng
     )
     shot = Shot(
         round_id=round_id,
         hole_number=hole_number,
         club_id=payload.club_id,
-        carry_yards=round(carry_yards, 1),
+        total_yards=round(ground_yards, 1),
         direction=payload.direction,
         source="gps",
         accuracy=payload.accuracy,

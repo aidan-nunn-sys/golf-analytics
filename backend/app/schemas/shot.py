@@ -15,7 +15,7 @@ class ShotOut(BaseModel):
     round_id: int | None
     hole_number: int | None
     club_id: int
-    carry_yards: float
+    carry_yards: float | None
     total_yards: float | None
     direction: Direction
     source: Source
