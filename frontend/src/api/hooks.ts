@@ -147,6 +147,7 @@ export function useUpdateRoundHole(id: number) {
 }
 export function useLogRoundShot(id: number) {
   const qc = useQueryClient();
+  const invalidateStats = useStatsInvalidation();
   return useMutation({
     mutationFn: (body: {
       club_id: number;
@@ -158,6 +159,9 @@ export function useLogRoundShot(id: number) {
       accuracy?: string;
       hole_number?: number;
     }) => apiSend<Shot>("POST", `/rounds/${id}/shots`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.round(id) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.round(id) });
+      invalidateStats();
+    },
   });
 }
