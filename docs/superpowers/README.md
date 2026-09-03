@@ -25,7 +25,11 @@ idea → spec (specs/) → approved → plan (plans/) → build → verified →
 
 ## Current state
 
-- **Pillar 1 — Club & Shot Analysis**
-  - Backend: `specs/2026-06-19-golf-analytics-design.md` (product + backend design) → `plans/2026-06-19-backend-club-shot-engine.md` — ✅ complete.
-  - Frontend: `specs/2026-06-30-frontend-club-shot-analysis-design.md` → plan in progress.
-- **Pillars 2–4** (on-course GPS/OSM, scores/handicap, learning profile): future slices, each its own spec → plan.
+- **Pillar 1 — Club & Shot Analysis** — ✅ complete.
+  - Backend: `specs/2026-06-19-golf-analytics-design.md` (product + backend design) → `plans/2026-06-19-backend-club-shot-engine.md`.
+  - Frontend: `specs/2026-06-30-frontend-club-shot-analysis-design.md` → `plans/2026-06-30-frontend-club-shot-analysis.md`.
+- **Pillar 2 — On-course GPS + OSM course management** — ✅ complete.
+  - Backend: `specs/2026-07-11-on-course-gps-course-management-design.md` → `plans/2026-07-11-backend-on-course-gps-course-management.md`.
+  - Frontend: `specs/2026-07-19-frontend-on-course-gps-design.md` → `plans/2026-07-19-frontend-on-course-gps.md`.
+- **Pillar 3 — Score & stats logging** (fairways, GIR, putts, handicap): spec `specs/2026-09-03-scores-stats-handicap-design.md` — awaiting approval.
+- **Pillar 4** (learning profile, strokes gained): future slice, its own spec → plan.
