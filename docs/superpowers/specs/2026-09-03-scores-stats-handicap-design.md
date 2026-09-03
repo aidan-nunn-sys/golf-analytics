@@ -1,6 +1,6 @@
 # Scores, Round Stats & Handicap (Pillar 3) — Design
 
-> **Status:** v1 design — draft, awaiting approval. Builds on the completed Pillar 1 (`specs/2026-06-19-golf-analytics-design.md`) and Pillar 2 (`specs/2026-07-11-on-course-gps-course-management-design.md`) slices.
+> **Status:** v1 design — approved 2026-09-03; WHS rules verified against the 2024 Rules of Handicapping (§7). Builds on the completed Pillar 1 (`specs/2026-06-19-golf-analytics-design.md`) and Pillar 2 (`specs/2026-07-11-on-course-gps-course-management-design.md`) slices.
 
 _Last updated: 2026-09-03_
 
@@ -14,7 +14,7 @@ This is the third of the four pillars in the main design doc's roadmap (§8). Pi
 
 The handicap engine is the centre of gravity. It is a published specification with worked examples, it reduces to pure functions over known inputs, and it therefore fits the repo's existing "TDD for the stats engine" convention exactly.
 
-**Accuracy stance:** implement WHS properly rather than approximating it — including 9-hole scores and the soft/hard caps. The one deliberate omission is PCC (§2.6). An Index that is quietly wrong is worse than no Index, because you cannot tell by looking at it.
+**Accuracy stance:** implement the Rules as written wherever they are knowable, and refuse to invent the parts that are not. Every constant here is cited to a rule and was verified against the 2024 Rules of Handicapping (§7). Two things WHS specifies cannot be computed outside the USGA — PCC and expected score (§2.3, §2.6) — and where a sanctioned substitute exists we take it and document it; where none exists, the round is excluded from the Index with a stated reason rather than approximated. An Index that is quietly wrong is worse than no Index, because you cannot tell by looking at it.
 
 ### Slice split
 
@@ -27,29 +27,41 @@ Backend ships and is verified first.
 
 ## 2. The handicap engine
 
+All rules below are cited to the *Rules of Handicapping*, effective January 2024, verified 2026-09-03 against the official PDF published by GolfRSA (`https://www.golfrsa.com/wp-content/uploads/2024/01/WHS_Rules_of_Handicapping_2024.pdf`). Rule numbers are that document's.
+
 ### 2.1 Definitions
 
-For each acceptable round:
+**Score Differential**, for an 18-hole score — Rule 5.1a. Rounded to the nearest tenth, .5 upwards:
 
 ```
 Score Differential = (113 / Slope Rating) × (Adjusted Gross Score − Course Rating − PCC)
 ```
 
-**Handicap Index** = the average of the lowest 8 of the most recent 20 Score Differentials, truncated to one decimal, capped at 54.0, then subject to the caps in §2.4.
+PCC ranges −1.0 to +3.0 (Rule 5.6); we fix it at 0 (§2.6).
 
-**Course Handicap** = `Handicap Index × (Slope Rating / 113) + (Course Rating − Par)`, rounded to the nearest whole number. This is the number of strokes received on that course from that tee.
+**Minus differentials** round *toward* zero — −1.54 → −1.5, −1.55 → −1.5, −1.56 → −1.6 (Rule 5.1c). This is not ordinary rounding and needs its own test.
 
-**Adjusted Gross Score (AGS)** caps each hole at **net double bogey**:
+**Handicap Index** — Rule 5.2b. The average of the lowest 8 of the most recent 20 Score Differentials, rounded to the nearest tenth, then subject to the caps in §2.4. Maximum 54.0 (Rule 5.3).
+
+**Course Handicap** — Rule 6.1a, rounded to the nearest whole number:
+
+```
+Course Handicap = Handicap Index × (Slope Rating / 113) + (Course Rating − par)
+```
+
+**Maximum hole score.** Before an Index is established, par + 5 (Rule 3.1a). After, net double bogey (Rule 3.1b):
 
 ```
 net double bogey = par + 2 + strokes received on that hole
 ```
 
-Strokes received on a hole is a function of Course Handicap and the hole's **stroke index** (its 1–18 difficulty ranking): a player with Course Handicap `H` receives one stroke on every hole whose stroke index is `≤ H`, and an additional stroke on holes whose stroke index is `≤ H − 18`, continuing for higher handicaps. Negative (plus) handicaps remove strokes from the hardest holes.
+Strokes received follows from Course Handicap and the hole's **stroke index**: one stroke on every hole whose stroke index is `≤ H`, an additional stroke on holes `≤ H − 18`, continuing upward. A plus-handicap player gives strokes back on the lowest-numbered stroke indexes.
+
+**Hole started but not holed out** — Rule 3.3: record most likely score, or net double bogey, whichever is lower.
 
 ### 2.2 Fewer than 20 rounds
 
-WHS defines a lookup table for players holding 3–19 acceptable scores, which both shrinks the "lowest N" window and applies an adjustment. Three rounds is the minimum to establish an Index.
+Rule 5.2a, verified verbatim. Three rounds is the minimum to establish an Index.
 
 | Rounds | Differentials used | Adjustment |
 |---|---|---|
@@ -67,55 +79,69 @@ WHS defines a lookup table for players holding 3–19 acceptable scores, which b
 
 Fewer than 3 rounds → no Index. The API returns `null` plus a `rounds_needed` count; it never fabricates a number.
 
-### 2.3 Partial and 9-hole rounds
+### 2.3 Partial rounds and the expected-score problem
 
-Abandoned rounds are normal — rain, darkness, walking in after 13. The app will produce them constantly via Pillar 2's live round mode, so the engine treats them as a first-class case rather than an error.
+Abandoned rounds are normal — rain, darkness, walking in after 13 — and Pillar 2's live round mode will produce them constantly, so the engine treats them as a first-class case.
 
-| Holes played | Treatment |
+The minimum hole counts are **not** what an earlier draft of this spec assumed:
+
+- An 18-hole score requires a minimum of **10 holes** played (Rule 2.2a).
+- A 9-hole score requires **all 9** holes played (Rule 2.2b). Ten to thirteen holes is an *18-hole* score, not a 9-hole one.
+
+**The blocker.** Rule 3.2b says holes not played are valued using the player's **expected score**, and the 2024 revision specifically replaced the old net-par procedure with it. But the expected-score calculation is *not published*: the Rules define it (Definitions, p.13) and state only that it "is automated," and the USGA's FAQ describes it as derived from the average Score Differential for a given Handicap Index without giving the table or the formula. It is not available outside the USGA and R&A. Exact WHS is therefore not implementable here.
+
+Clarification 3.2b/2 provides the escape for incomplete rounds: **net par** may be used in place of the expected score "only when approved by the Authorized Association." Since this Index is explicitly unofficial (§9), we self-authorize that substitution and document it here. Net par for a hole = par + strokes received on that hole.
+
+No equivalent escape exists for converting a 9-hole score into an 18-hole differential (Rule 5.1b combines the 9-hole differential with the expected score over 9 holes), so that conversion is not attempted.
+
+| Holes scored | Treatment |
 |---|---|
 | 18 | 18-hole differential |
-| 14–17 | 18-hole differential; unplayed holes recorded as **net par** (par + strokes received) |
-| 10–13 | 9-hole score |
-| 9 | 9-hole score |
-| < 9 | Not handicap-acceptable. Still recorded, still produces round stats. |
+| 10–17 | 18-hole differential; unplayed holes valued at **net par** (documented divergence, above) |
+| 9 exactly | 9-hole differential computed and displayed, but **does not feed the Index** |
+| < 9 | Not handicap-acceptable (Rule 5.1b). Still recorded, still produces round stats. |
 
 A hole is "not played" when its `strokes` is `NULL`, which the model already allows.
 
-`hole_count` and `nine` on `Round` record what the player *intended* to play. The scope actually used for rating and differential is decided by the holes with a recorded score, not by that intent:
+The 9-hole Score Differential is still worth computing and showing, and is defined by Rule 5.1b — note the halved PCC term, and that it stays **unrounded** until combined:
 
-- 14+ holes scored → the `18` rating.
-- 9–13 holes scored → a 9-hole rating, chosen by which nine the scored holes fall in (holes 1–9 → `front9`, holes 10–18 → `back9`). A round spanning both nines is scored against the nine holding the majority of played holes; ties take `front9`.
-- A round whose tee has no rating for the required scope is not handicap-acceptable, and `GET /rounds/{id}/stats` says so by name ("this tee has no front-9 rating") rather than returning a silent null.
+```
+9-hole Score Differential = (113 / 9-hole Slope) × (9-hole AGS − 9-hole Course Rating − 0.5 × PCC)
+```
 
-9-hole scores use **9-hole Course and Slope Ratings**, which are separate published values per tee — roughly half the 18-hole rating, but not derivable from it by division. This is what drives the `TeeRating` table in §3.1.
-
-> **⚠ Must verify before Plan 3a (§7).** The 2024 revision of the *Rules of Handicapping* changed how a 9-hole score becomes part of the Index. The older scheme paired two 9-hole differentials into one 18-hole differential; the newer scheme scales a single 9-hole score up on its own. This spec does not state which applies or the exact arithmetic, because getting it wrong would be invisible. Confirm against the current Rules, record the citation here, then write the plan.
+9-hole ratings are separate published values per tee, not half the 18-hole rating, which is what the `TeeRating` scopes in §3.1 exist for. A round that is not handicap-acceptable must say why by name — "9-hole rounds do not count toward the Index" or "only 7 holes scored" — never a silent null.
 
 ### 2.4 Soft cap and hard cap
 
-WHS limits how fast an Index may rise, measured against the player's **Low Handicap Index** — their lowest Index over the preceding 12 months.
+Rule 5.8, measured against the **Low Handicap Index** (Rule 5.7):
 
-- **Soft cap:** once the calculated Index exceeds the Low Index by more than 3.0, the excess above 3.0 is reduced by 50%.
-- **Hard cap:** the Index may never exceed the Low Index by more than 5.0.
+- **Soft cap:** when the calculated Index exceeds the Low Index by more than 3.0, the excess above 3.0 is reduced by 50%.
+- **Hard cap:** after the soft cap, the Index may not exceed the Low Index by more than 5.0.
+- There is no limit on downward movement.
 
-Caps apply after the §2.2 calculation. The Low Index is itself derived from the same chronological walk (§2.5) — it is a rolling minimum over a 12-month window, not a stored field, so it inherits the same recompute-from-source guarantee as everything else.
+Two constraints that materially affect the build, both from Rule 5.7:
 
-A cap must be visible, not silent: `GET /stats/handicap` reports whether a cap is currently applied and by how much, so the number is explainable.
+1. **A Low Handicap Index is established only once the player has at least 20 acceptable scores**, and Rule 5.8 states caps "start to take effect only after the Low Handicap Index has been established." Caps are therefore inert until the 20th round — real, but not observable early. Their tests must construct a 20+ round history rather than relying on manual play.
+2. The Low Index is the lowest Index over the **365 days preceding the date of the most recent score in the record** — anchored to that score's date, not to today.
+
+A cap must be visible, not silent: `GET /stats/handicap` reports whether a cap is applied and by how much.
 
 ### 2.5 Chronology, and why the engine replays history
 
-AGS depends on Course Handicap → Handicap Index → the differentials of *earlier* rounds. Caps depend on the Low Index over the prior 12 months. Neither can be evaluated for a round in isolation.
+AGS depends on Course Handicap → Handicap Index → the differentials of *earlier* rounds. Caps depend on the Low Index over the prior 365 days. Neither can be evaluated for a round in isolation.
 
 **The engine therefore walks a player's rounds in date order, carrying Index and Low Index forward.** Each round is adjusted using the Index established by the rounds preceding it.
 
 Nothing derived is persisted (§4.1). Raw hole scores are the single source of truth, so correcting a typo in a two-year-old round automatically repairs every downstream number, and a backdated round inserts correctly with no backfill logic.
 
-For rounds played before an Index exists (the first three), WHS caps hole scores at **par + 5** rather than net double bogey. That branch gets its own tests.
+For rounds played before an Index exists (the first three), hole scores cap at par + 5 (Rule 3.1a) rather than net double bogey. That branch gets its own tests.
 
-### 2.6 Deferred
+### 2.6 Deferred or excluded
 
-- **PCC (Playing Conditions Calculation)** — requires a field of same-day scores at the same course, which a self-hosted app for a few friends structurally cannot have. Fixed at `0`, but kept as an explicit parameter in the differential signature so it can be supplied later without touching call sites.
-- **Exceptional score reduction.**
+- **PCC (Playing Conditions Calculation)** — Rule 5.6 computes it from a field of same-day scores at the same course, which a self-hosted app for a few friends structurally cannot have. Fixed at `0`, kept as an explicit parameter in the differential signature (and as `0.5 × PCC` in the 9-hole form) so it can be supplied later without touching call sites.
+- **Expected score** — unpublished; see §2.3. If the USGA ever publishes the table, net par is replaced in one function and 9-hole conversion becomes possible.
+- **Exceptional score reduction** — Rule 5.9. Deferred.
+- **Committee adjustments and penalty scores** — Rule 7. Not applicable to a personal record.
 - **Competition/tournament scoring**, match play, Stableford.
 
 ## 3. Data model
@@ -124,7 +150,7 @@ For rounds played before an Index exists (the first three), WHS caps hole scores
 
 Handicap arithmetic needs Course Rating, Slope Rating and par. `Course` and `Hole` carry none of them, and **OpenStreetMap does not publish them** — the Pillar 2 importer (`routers/courses.py`) reads only hole number, par, green coordinates and hazards, and even par is nullable because OSM often omits it. These values live in national association databases with no open API, so they are **entered by hand** (§5).
 
-Ratings differ per tee, and 9-hole play needs separate front/back ratings, so they get their own tables:
+Ratings differ per tee, and 9-hole differentials need separate front/back ratings (§2.3), so they get their own tables:
 
 ```
 TeeSet
@@ -158,15 +184,17 @@ Stroke index can technically vary by tee and gender. Keeping it on `Hole` is a d
 ```
 Round gains:
   tee_set_id     int | None   fk -> tee_sets.id
-  hole_count     int          default 18       # 9 or 18 as intended when started
-  nine           str | None                    # "front" | "back", only when hole_count == 9
+  hole_count     int          default 18       # 9 or 18: which rating scope the round is played against
+  nine           str | None                    # "front" | "back", required when hole_count == 9
   # snapshotted at round creation from the applicable TeeRating; never read live:
   course_rating  float | None
   slope_rating   int   | None
   course_par     int   | None
 ```
 
-`Round.status` gains `abandoned` alongside `in_progress` and `complete`, so a walked-off round stops looking like a round still in progress. Acceptability is derived from holes actually played (§2.3), not from status.
+`Round.status` gains `abandoned` alongside `in_progress` and `complete`, so a walked-off round stops looking like a round still in progress. Acceptability is derived from the holes actually scored (§2.3), never from status.
+
+`hole_count` and `nine` declare which rating scope the round is played against — an 18-hole round snapshots the `18` rating, a nine snapshots `front9` or `back9`. They are fixed when the round starts and are not re-derived from how many holes ended up scored: an 18-hole round abandoned at hole 12 remains an 18-hole round against the 18-hole rating, with holes 13–18 valued at net par. This is the whole reason the thresholds in §2.3 are expressed as "holes scored" against a round whose scope is already known. A round whose tee has no `TeeRating` for its scope is not handicap-acceptable, and `GET /rounds/{id}/stats` says so by name ("this tee has no front-9 rating").
 
 **The snapshot is the load-bearing decision.** Courses get re-rated. If differentials read live from `TeeRating`, re-rating a course silently rewrites scoring history and the Index changes for a round played two years ago. Copying rating/slope/par onto the `Round` at creation makes history immutable — the same instinct as the existing "distances are canonically yards" rule: pin what must not drift.
 
@@ -248,18 +276,29 @@ All under `/api`, all scoped to `current_user`.
 - `GET /stats/handicap` — current Index (or `null` + `rounds_needed`), the last 20 differentials flagged with which 8 counted, Low Index, whether a cap is applied and by how much, and the Index trend over time
 - `GET /stats/rounds` — §4.2 stats aggregated across the last *N* rounds, with trend
 
-## 7. Verify before writing Plan 3a
+## 7. Rule verification (completed 2026-09-03)
 
-These are transcribed from memory of a published standard. A transcription error would be silent, so each must be checked against the current *Rules of Handicapping* and the citation recorded in this spec before the plan is written:
+Every WHS constant in this spec was checked against the *Rules of Handicapping* effective January 2024, read from the official GolfRSA PDF. Three items in the first draft were wrong and are corrected above.
 
-1. The §2.2 fewer-than-20 table (windows and adjustments).
-2. 9-hole handling under the 2024 revision — pair-and-combine vs. scale-up, and the exact arithmetic (§2.3).
-3. Soft/hard cap thresholds (3.0 / 50% / 5.0) and whether caps apply before or after the 54.0 ceiling.
-4. Net par fill for 14–17 hole rounds, and the 10-hole boundary for 9-hole treatment.
-5. The par + 5 cap for players without an established Index.
-6. Rounding and truncation rules — where WHS truncates versus rounds, and to how many decimals.
+| Item | Rule | Result |
+|---|---|---|
+| Fewer-than-20 table | 5.2a | ✅ Verbatim match |
+| 18-hole Score Differential formula | 5.1a | ✅ Confirmed |
+| Course Handicap formula | 6.1a | ✅ Confirmed |
+| Net double bogey; par + 5 pre-Index | 3.1b, 3.1a | ✅ Confirmed |
+| Soft cap 3.0 / 50%, hard cap 5.0 | 5.8 | ✅ Confirmed |
+| Maximum Handicap Index 54.0 | 5.3 | ✅ Confirmed |
+| Minimum holes for an 18-hole score | 2.2a | ❌ **10**, not 14 as drafted |
+| 10–13 hole rounds | 2.2a, 2.2b | ❌ These are 18-hole scores; a 9-hole score needs all 9 |
+| Value for holes not played | 3.2b, 3.2b/2 | ❌ Expected score, not net par; net par permitted only by approval |
+| Caps require an established Low Index | 5.7, 5.8 | ⚠ Inert until 20 acceptable scores |
+| Low Index window | 5.7 | ⚠ 365 days before the *most recent score's* date |
+| 9-hole differential, halved PCC, unrounded until combined | 5.1b | ⚠ Recorded but excluded from the Index (§2.3) |
+| Minus differentials round toward zero | 5.1c | ⚠ Not ordinary rounding; needs its own test |
+| Hole started, not holed out | 3.3 | ⚠ Most likely score or net double bogey, whichever lower |
+| Expected score table | Definitions p.13 | 🚧 **Unpublished**; not obtainable outside USGA/R&A |
 
-USGA worked examples become the test fixtures for the handicap package; the engine's pure-function shape exists partly to make them usable directly.
+The Rules document contains worked examples (for instance Clarification 5.2a/1: differentials 15.3, 15.2, 16.6 → Index 13.2) which become test fixtures for the handicap package directly.
 
 ## 8. Screens (routes)
 
@@ -285,12 +324,15 @@ USGA worked examples become the test fixtures for the handicap package; the engi
 - 2026-09-03 — Course Rating, Slope and stroke index are **not obtainable from OSM** and have no open API. Accepted manual entry (~20 numbers per tee, once) in exchange for a genuinely correct Index, over the alternatives of a simplified handicap or a stats-only slice.
 - 2026-09-03 — Ratings live on `TeeSet` + `TeeRating` rather than on `Course`: rating/slope/par differ per tee, and 9-hole play needs separate front/back values. A child table keyed by scope beats nine nullable columns.
 - 2026-09-03 — Course rating/slope/par are **snapshotted onto `Round`** at creation. Re-rating a course must not retroactively rewrite scoring history.
-- 2026-09-03 — Full WHS accuracy chosen over approximation, including 9-hole scores (§2.3) and soft/hard caps (§2.4). PCC excluded as structurally impossible for this deployment; kept as an explicit parameter defaulting to 0.
-- 2026-09-03 — Rating scope for a round is chosen from the holes actually scored, not from the player's stated `hole_count`/`nine`; a round spanning both nines uses the nine holding most played holes, ties to `front9`. A missing rating for the required scope makes the round non-acceptable with a named reason rather than a silent null.
-- 2026-09-03 — Partial rounds are first-class: 14–17 holes fill unplayed holes with net par; 10–13 become 9-hole scores; under 9 is stats-only. `Round.status` gains `abandoned`.
+- 2026-09-03 — Full WHS accuracy chosen over approximation, including soft/hard caps (§2.4). PCC excluded as structurally impossible for this deployment (Rule 5.6 needs a field of same-day scores); kept as an explicit parameter defaulting to 0.
+- 2026-09-03 — Rating scope is **declared** by the round's `hole_count`/`nine` and fixed at creation, not re-derived from how many holes ended up scored. An 18-hole round abandoned at hole 12 stays an 18-hole round. A missing `TeeRating` for the declared scope makes the round non-acceptable with a named reason rather than a silent null.
+- 2026-09-03 — **Corrected after rule verification.** Partial rounds are first-class, but the thresholds in the first draft were wrong: an 18-hole score needs a minimum of 10 holes (Rule 2.2a, not 14), and a 9-hole score needs all 9 (Rule 2.2b) — so 10–13 holes is an 18-hole score, not a 9-hole one. `Round.status` gains `abandoned`.
 - 2026-09-03 — **Approach A (pure recomputation)** chosen over a materialized ledger or hybrid read model: the engine replays history chronologically on each request. Matches the existing derived-stats convention, makes backdated inserts and corrections self-healing, and is trivially cheap at this data volume. Revisit only if profiling demands it.
 - 2026-09-03 — Handicap logic is a package of pure modules (`strokes`, `differential`, `index`, `history`), with ordering knowledge confined to `history.py`, so USGA worked examples can serve directly as fixtures.
 - 2026-09-03 — GIR, scrambling and fairway percentage are derived from `strokes − putts` vs. par, not stored, per the existing derived-stats convention.
 - 2026-09-03 — Backlog history is hand-entered; CSV import from other apps deferred until a real export format is available. Entry form targets under a minute per round.
 - 2026-09-03 — Stroke index lives on `Hole`, not per tee — accepted simplification, movable to a `HoleTee` join without touching the engine.
-- 2026-09-03 — WHS constants and rules in this spec are transcribed from memory and are listed in §7 as must-verify items before Plan 3a is written.
+- 2026-09-03 — Holes not played are valued at **net par**, a documented divergence from Rule 3.2b (which specifies the expected score). Clarification 3.2b/2 permits net par with Authorized Association approval; since this Index is explicitly unofficial, we self-authorize and record it. Swappable in one function if the expected-score table is ever published.
+- 2026-09-03 — The **expected-score calculation is unpublished** and unavailable outside the USGA/R&A, so exact WHS is not implementable. Consequence: standalone 9-hole rounds get a 9-hole differential computed and displayed (Rule 5.1b) but **do not feed the Index**, shown with a named reason. Rejected alternatives — the pre-2024 pairing method (diverges from current rules, pairs rounds across different days and conditions) and approximating the expected differential (invents a number the spec's own accuracy stance forbids).
+- 2026-09-03 — Soft/hard caps are **inert until 20 acceptable scores**, because Rule 5.7 establishes a Low Handicap Index only at 20+ and Rule 5.8 gates caps on it. Their tests must construct a 20+ round history rather than relying on played rounds. Low Index window is the 365 days preceding the most recent score's date.
+- 2026-09-03 — **All WHS constants verified** against the Rules of Handicapping effective January 2024 (official GolfRSA PDF), read directly rather than from secondary summaries. Results, including the three corrections above, are tabulated in §7 with rule citations. Rule 5.1c minus-differential rounding (toward zero) and Rule 3.3 (most likely score or net double bogey, whichever lower) were picked up during verification and added.
