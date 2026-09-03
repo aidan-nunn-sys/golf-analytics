@@ -55,7 +55,7 @@ Course Handicap = Handicap Index × (Slope Rating / 113) + (Course Rating − pa
 net double bogey = par + 2 + strokes received on that hole
 ```
 
-Strokes received follows from Course Handicap and the hole's **stroke index**: one stroke on every hole whose stroke index is `≤ H`, an additional stroke on holes `≤ H − 18`, continuing upward. A plus-handicap player gives strokes back on the lowest-numbered stroke indexes.
+Strokes received follows from Course Handicap and the hole's **stroke index**: one stroke on every hole whose stroke index is `≤ H`, an additional stroke on holes `≤ H − 18`, continuing upward. A plus-handicap player gives strokes back to the course **beginning at stroke index 18** — a +2 gives back on stroke indexes 18 and 17 (Appendix C).
 
 **Hole started but not holed out** — Rule 3.3: record most likely score, or net double bogey, whichever is lower.
 
@@ -192,7 +192,7 @@ Round gains:
   course_par     int   | None
 ```
 
-`Round.status` gains `abandoned` alongside `in_progress` and `complete`, so a walked-off round stops looking like a round still in progress. Acceptability is derived from the holes actually scored (§2.3), never from status.
+`Round.status` gains `abandoned` alongside the existing `in_progress` and `completed`, so a walked-off round stops looking like a round still in progress. Acceptability is derived from the holes actually scored (§2.3), never from status.
 
 `hole_count` and `nine` declare which rating scope the round is played against — an 18-hole round snapshots the `18` rating, a nine snapshots `front9` or `back9`. They are fixed when the round starts and are not re-derived from how many holes ended up scored: an 18-hole round abandoned at hole 12 remains an 18-hole round against the 18-hole rating, with holes 13–18 valued at net par. This is the whole reason the thresholds in §2.3 are expressed as "holes scored" against a round whose scope is already known. A round whose tee has no `TeeRating` for its scope is not handicap-acceptable, and `GET /rounds/{id}/stats` says so by name ("this tee has no front-9 rating").
 
@@ -251,7 +251,7 @@ Both flows exist because the handicap is worthless without data, and both are ma
 
 **Course rating setup.** Per course, per tee: name, then rating/slope/par for 18 (and optionally front9/back9), then 18 stroke indexes. Roughly 20 numbers per tee, once. The form should accept the whole tee in one submission and validate before saving: stroke indexes must be a permutation of 1–18, slope must be 55–155, and hole pars must sum to the stated par. Catching a transposed stroke index at entry is far cheaper than discovering it in a differential months later.
 
-**Backlog rounds.** A backlog round is a `Round` created directly in `complete` status with hole scores supplied up front and no GPS involvement. Two depths, because demanding full stat detail for a round from last summer guarantees the feature goes unused:
+**Backlog rounds.** A backlog round is a `Round` created directly in `completed` status with hole scores supplied up front and no GPS involvement. Two depths, because demanding full stat detail for a round from last summer guarantees the feature goes unused:
 
 - **Score only** — hole scores and nothing else. Sufficient for a valid differential.
 - **Full detail** — plus fairway/putts/penalties per hole, feeding the stat trends.
@@ -268,7 +268,7 @@ All under `/api`, all scoped to `current_user`.
 - `PUT /courses/{id}/stroke-index` — all 18 at once, validated as a permutation
 
 **Rounds** (extending Pillar 2)
-- `POST /rounds` — gains `tee_set_id`, `hole_count`, `nine`, and optional `status: complete` + inline holes for backlog entry
+- `POST /rounds` — gains `tee_set_id`, `hole_count`, `nine`, and optional `status: completed` + inline holes for backlog entry
 - `PATCH /rounds/{id}/holes/{number}` — gains `fairway_hit`, `putts`, `penalties`
 - `GET /rounds/{id}/stats` — the §4.2 table for one round, plus its Score Differential and whether it was handicap-acceptable (with the reason if not)
 
