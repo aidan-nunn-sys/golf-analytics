@@ -17,6 +17,7 @@ from typing import TypedDict
 from app.stats.handicap.differential import (
     HoleScore,
     adjusted_gross_score,
+    round_differential,
     score_differential_9,
     score_differential_18,
 )
@@ -244,6 +245,11 @@ def current_state(results: list[RoundResult]) -> dict:
     index, cap_applied = (
         (None, None) if calculated is None else apply_caps(calculated, low)
     )
+    # Spec 2.4: a cap must be visible, and visible BY HOW MUCH - the strokes
+    # Rule 5.8 held back, i.e. calculated minus capped. None when no cap ran.
+    cap_adjustment = (
+        None if cap_applied is None else round_differential(calculated - index)
+    )
 
     recent = counting[-20:]
     counting_ids: list[int] = []
@@ -258,6 +264,7 @@ def current_state(results: list[RoundResult]) -> dict:
         "index": index,
         "low_index": low,
         "cap_applied": cap_applied,
+        "cap_adjustment": cap_adjustment,
         "rounds_needed": max(0, 3 - len(counting)),
         "counting_round_ids": counting_ids,
     }

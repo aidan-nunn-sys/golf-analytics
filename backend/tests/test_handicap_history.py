@@ -186,6 +186,7 @@ def test_the_walk_computes_with_the_capped_index_it_reports():
     assert results[-1]["differential"] == 34.1
     # The Index carried through the walk and the Index reported are one value.
     assert results[-1]["index_after"] == state["index"] == 3.7
+    assert state["cap_adjustment"] is not None and state["cap_adjustment"] > 0
 
 
 def test_low_index_window_excludes_indexes_older_than_365_days():

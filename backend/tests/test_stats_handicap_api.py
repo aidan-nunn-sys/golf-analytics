@@ -222,3 +222,53 @@ def test_nine_hole_differential_is_computed_over_the_nine_actually_played(
     assert body["differential"] == pytest.approx((113 / 130) * (36 - 35.6), abs=1e-4)
     assert body["counts_toward_index"] is False
     assert "9-hole" in body["reason"]
+
+
+def test_handicap_response_carries_the_index_trend(client, auth_headers, rated_course):
+    """Spec 2.4/6: the response reports the Index trend over time and, when a
+    cap is applied, by how much. `index_after` is computed for every round by
+    the walk and used to be discarded on the way out.
+    """
+    course_id, tee_id = rated_course
+    for i, strokes in enumerate([5, 6, 5], start=1):
+        _post_round(client, auth_headers, course_id, tee_id, f"2026-09-0{i}", strokes)
+
+    body = client.get("/api/stats/handicap", headers=auth_headers).json()
+    trend = [d["index_after"] for d in body["differentials"]]
+    assert trend[0] is None and trend[1] is None   # no Index below three scores
+    assert trend[2] == body["index"] == 14.1
+    # No cap is possible below 20 acceptable scores (Rule 5.7), so no amount.
+    assert body["cap_applied"] is None
+    assert body["cap_adjustment"] is None
+
+
+def test_round_on_a_course_without_stroke_indexes_is_not_scored(
+    client, auth_headers, seeded_course_via_api
+):
+    """Spec 3.1: stroke index is required before a round is acceptable.
+
+    The course below is fully rated but has never had its stroke indexes
+    entered. The adapter used to substitute the hole number, producing a
+    differential off an invented stroke allocation and an Index with no
+    stated reason. It must say what is missing instead.
+    """
+    course_id = seeded_course_via_api
+    tee_id = client.post(
+        f"/api/courses/{course_id}/tees", json={"name": "Blue"}, headers=auth_headers
+    ).json()["id"]
+    client.put(
+        f"/api/tees/{tee_id}/ratings/18",
+        json={"course_rating": 71.2, "slope_rating": 132, "par": 72},
+        headers=auth_headers,
+    )
+    for day in ("2026-09-01", "2026-09-02", "2026-09-03"):
+        _post_round(client, auth_headers, course_id, tee_id, day, 5)
+
+    body = client.get("/api/stats/handicap", headers=auth_headers).json()
+    assert body["index"] is None
+    assert body["rounds_needed"] == 3
+    assert all(d["differential"] is None for d in body["differentials"])
+    assert all(
+        d["reason"] == "This course has no stroke indexes set"
+        for d in body["differentials"]
+    )

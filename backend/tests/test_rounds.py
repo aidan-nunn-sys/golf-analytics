@@ -213,20 +213,47 @@ def test_nine_hole_round_requires_nine(client, auth_headers, rated_course):
     assert resp.status_code == 422
 
 
-def test_round_rejects_a_tee_missing_the_required_scope(
+def test_round_on_a_tee_missing_the_required_scope_is_recorded_not_rejected(
     client, auth_headers, seeded_course_via_api
 ):
+    """Spec 3.2: the round IS created, with a null rating snapshot, and
+    `GET /rounds/{id}/stats` names the missing scope.
+
+    This previously 422'd, which threw away a real scorecard over a rating
+    the player can enter afterwards. The stats view still refuses to invent a
+    differential - it says why instead.
+    """
     course_id = seeded_course_via_api
+    client.put(
+        f"/api/courses/{course_id}/stroke-index",
+        json={"stroke_indexes": list(range(1, 19))},
+        headers=auth_headers,
+    )
     tee_id = client.post(
         f"/api/courses/{course_id}/tees", json={"name": "Bare"}, headers=auth_headers
     ).json()["id"]
+
     resp = client.post(
         "/api/rounds",
-        json={"course_id": course_id, "date": "2026-09-01", "tee_set_id": tee_id},
+        json={
+            "course_id": course_id, "date": "2026-09-01", "tee_set_id": tee_id,
+            "hole_count": 9, "nine": "front", "status": "completed",
+            "holes": [{"number": n, "strokes": 5} for n in range(1, 10)],
+        },
         headers=auth_headers,
     )
-    assert resp.status_code == 422
-    assert "rating" in resp.json()["detail"].lower()
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["course_rating"] is None
+    assert body["slope_rating"] is None
+
+    stats = client.get(
+        f"/api/rounds/{body['id']}/stats", headers=auth_headers
+    ).json()
+    assert stats["score"] == 45              # the scorecard survived
+    assert stats["differential"] is None
+    assert stats["counts_toward_index"] is False
+    assert stats["reason"] == "This tee has no front-9 rating"
 
 
 def test_backlog_round_created_complete_with_inline_holes(

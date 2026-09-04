@@ -65,12 +65,19 @@ class DifferentialRow(BaseModel):
     counts_toward_index: bool
     reason: str | None
     is_counting: bool  # one of the lowest 8 currently feeding the Index
+    # The Index as it stood after this round. Ordered by date, these rows are
+    # the Index trend spec 2.4/6 asks `GET /stats/handicap` to return; the
+    # walk already computes the value for every round.
+    index_after: float | None
 
 
 class HandicapOut(BaseModel):
     index: float | None
     low_index: float | None
     cap_applied: str | None
+    # Strokes Rule 5.8's cap held back (uncapped Index minus reported Index).
+    # Spec 2.4 requires reporting whether a cap applies AND by how much.
+    cap_adjustment: float | None
     rounds_needed: int
     differentials: list[DifferentialRow]
 

@@ -65,7 +65,18 @@ def _round_out(db: Session, r: Round) -> RoundOut:
 
 def _snapshot_rating(db: Session, tee_set_id: int | None, course_id: int, scope: str):
     """Copy rating/slope/par off the tee at creation so a later re-rating
-    cannot rewrite this round's differential (spec 3.2)."""
+    cannot rewrite this round's differential (spec 3.2).
+
+    A tee with no rating for the scope played is NOT an error. Spec 3.2 is
+    explicit that such a round is created and that `GET /rounds/{id}/stats`
+    "says so by name" - refusing it lost the round, and with it the score,
+    the putts and the fairways, over a rating the player can add later. The
+    snapshot is left null and the handicap engine reports the round
+    non-acceptable with the scope named.
+
+    A tee belonging to a DIFFERENT course is still rejected: that is a
+    mismatched request, not missing reference data.
+    """
     if tee_set_id is None:
         return None, None, None
     tee = db.get(TeeSet, tee_set_id)
@@ -82,10 +93,7 @@ def _snapshot_rating(db: Session, tee_set_id: int | None, course_id: int, scope:
         .one_or_none()
     )
     if rating is None:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            f"This tee has no {scope} rating; add one before starting the round",
-        )
+        return None, None, None
     return rating.course_rating, rating.slope_rating, rating.par
 
 

@@ -188,6 +188,7 @@ def get_handicap(
         index=state["index"],
         low_index=state["low_index"],
         cap_applied=state["cap_applied"],
+        cap_adjustment=state["cap_adjustment"],
         rounds_needed=state["rounds_needed"],
         differentials=[
             DifferentialRow(
@@ -197,6 +198,7 @@ def get_handicap(
                 counts_toward_index=r["counts_toward_index"],
                 reason=r["reason"],
                 is_counting=r["round_id"] in counting_ids,
+                index_after=r["index_after"],
             )
             for r in results
         ],
