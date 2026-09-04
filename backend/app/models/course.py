@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
@@ -18,6 +18,10 @@ class Course(Base):
         DateTime(timezone=True), server_default=func.now()
     )
 
+    holes: Mapped[list["Hole"]] = relationship(
+        back_populates="course", order_by="Hole.number"
+    )
+
 
 class Hole(Base):
     __tablename__ = "holes"
@@ -30,3 +34,6 @@ class Hole(Base):
     green_lat: Mapped[float | None] = mapped_column(Float, nullable=True)
     green_lng: Mapped[float | None] = mapped_column(Float, nullable=True)
     hazards: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    stroke_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    course: Mapped["Course"] = relationship(back_populates="holes")

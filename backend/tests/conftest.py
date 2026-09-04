@@ -58,6 +58,34 @@ from app.seed import bootstrap_admin
 
 
 @pytest.fixture
+def seeded_user_and_course(db_session):
+    """A user, an 18-hole course with par-4 holes and stroke indexes 1..18,
+    and a Blue tee rated for 18 / front9 / back9."""
+    from app.models import Course, Hole, TeeRating, TeeSet, User
+    from app.seed import bootstrap_admin
+
+    user = bootstrap_admin(db_session)
+    if user is None:
+        user = db_session.query(User).filter_by(email=settings.admin_email).one()
+    course = Course(name="Lonnie Poole", import_source="manual")
+    db_session.add(course)
+    db_session.flush()
+    for n in range(1, 19):
+        db_session.add(Hole(course_id=course.id, number=n, par=4, stroke_index=n))
+    tee = TeeSet(course_id=course.id, name="Blue", yardage=6200)
+    db_session.add(tee)
+    db_session.flush()
+    db_session.add_all([
+        TeeRating(tee_set_id=tee.id, scope="18", course_rating=71.2, slope_rating=132, par=72),
+        TeeRating(tee_set_id=tee.id, scope="front9", course_rating=35.6, slope_rating=130, par=36),
+        TeeRating(tee_set_id=tee.id, scope="back9", course_rating=35.6, slope_rating=134, par=36),
+    ])
+    db_session.commit()
+    db_session.refresh(course)
+    return user, course, tee
+
+
+@pytest.fixture
 def auth_headers(client, db_session):
     bootstrap_admin(db_session)
     resp = client.post(
