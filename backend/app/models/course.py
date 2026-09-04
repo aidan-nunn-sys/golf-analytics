@@ -19,7 +19,7 @@ class Course(Base):
     )
 
     holes: Mapped[list["Hole"]] = relationship(
-        back_populates="course", order_by="Hole.number"
+        back_populates="course", order_by="Hole.number", cascade="all, delete-orphan"
     )
 
 

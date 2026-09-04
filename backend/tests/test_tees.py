@@ -1,5 +1,8 @@
 from datetime import date
 
+import pytest
+from sqlalchemy.exc import IntegrityError
+
 from app.models import Course, Hole, Round, RoundHole, TeeSet, TeeRating
 
 
@@ -51,3 +54,25 @@ def test_round_snapshots_rating_and_hole_stats(db_session, seeded_user_and_cours
     assert rnd.course_rating == 71.2
     assert rnd.status == "in_progress"
     assert rh.putts == 2 and rh.fairway_hit is True and rh.penalties == 0
+
+
+def test_tee_rating_scope_unique_per_tee_set(db_session):
+    course = Course(name="Lonnie Poole", import_source="manual")
+    db_session.add(course)
+    db_session.flush()
+
+    tee = TeeSet(course_id=course.id, name="Blue", yardage=6200)
+    db_session.add(tee)
+    db_session.flush()
+
+    db_session.add(
+        TeeRating(tee_set_id=tee.id, scope="18", course_rating=71.2, slope_rating=132, par=72)
+    )
+    db_session.commit()
+
+    db_session.add(
+        TeeRating(tee_set_id=tee.id, scope="18", course_rating=70.0, slope_rating=125, par=72)
+    )
+    with pytest.raises(IntegrityError):
+        db_session.flush()
+
