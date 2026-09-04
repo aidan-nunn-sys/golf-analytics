@@ -1,16 +1,14 @@
-from datetime import date as date_type
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Club, Course, Hole, Round, RoundHole, Shot, User
+from app.models import Club, Course, Hole, Round, RoundHole, Shot, TeeRating, TeeSet, User
 from app.schemas.round import (
     RoundCreate,
     RoundHoleOut,
-    RoundHoleUpdate,
+    RoundHolePatch,
     RoundOut,
     RoundUpdate,
 )
@@ -35,7 +33,14 @@ def _round_out(db: Session, r: Round) -> RoundOut:
         .order_by(Hole.number)
     ).all()
     holes = [
-        RoundHoleOut(hole_number=number, par=rh.par, strokes=rh.strokes)
+        RoundHoleOut(
+            hole_number=number,
+            par=rh.par,
+            strokes=rh.strokes,
+            putts=rh.putts,
+            fairway_hit=rh.fairway_hit,
+            penalties=rh.penalties,
+        )
         for rh, number in rows
     ]
     return RoundOut(
@@ -44,8 +49,44 @@ def _round_out(db: Session, r: Round) -> RoundOut:
         date=r.date,
         status=r.status,
         current_hole=r.current_hole,
+        tee_set_id=r.tee_set_id,
+        hole_count=r.hole_count,
+        nine=r.nine,
+        course_rating=r.course_rating,
+        slope_rating=r.slope_rating,
+        course_par=r.course_par,
         holes=holes,
     )
+
+
+def _scope_for(hole_count: int, nine: str | None) -> str:
+    """The TeeRating scope a round is played against.
+
+    Declared at creation and fixed — an 18-hole round abandoned at hole 12 is
+    still an 18-hole round against the 18-hole rating (spec 3.2).
+    """
+    return "18" if hole_count == 18 else f"{nine}9"
+
+
+def _snapshot_rating(db: Session, tee_set_id: int | None, scope: str):
+    """Copy rating/slope/par off the tee at creation so a later re-rating
+    cannot rewrite this round's differential (spec 3.2)."""
+    if tee_set_id is None:
+        return None, None, None
+    tee = db.get(TeeSet, tee_set_id)
+    if tee is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tee set not found")
+    rating = (
+        db.query(TeeRating)
+        .filter(TeeRating.tee_set_id == tee_set_id, TeeRating.scope == scope)
+        .one_or_none()
+    )
+    if rating is None:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"This tee has no {scope} rating; add one before starting the round",
+        )
+    return rating.course_rating, rating.slope_rating, rating.par
 
 
 @router.post("", response_model=RoundOut, status_code=status.HTTP_201_CREATED)
@@ -62,7 +103,22 @@ def create_round(
     ).all()
     if not holes:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Course has no holes")
-    r = Round(user_id=user.id, course_id=course.id, date=date_type.today())
+    scope = _scope_for(payload.hole_count, payload.nine)
+    course_rating, slope_rating, course_par = _snapshot_rating(
+        db, payload.tee_set_id, scope
+    )
+    r = Round(
+        user_id=user.id,
+        course_id=payload.course_id,
+        date=payload.date,
+        status=payload.status,
+        tee_set_id=payload.tee_set_id,
+        hole_count=payload.hole_count,
+        nine=payload.nine,
+        course_rating=course_rating,
+        slope_rating=slope_rating,
+        course_par=course_par,
+    )
     db.add(r)
     db.commit()
     db.refresh(r)
@@ -73,6 +129,23 @@ def create_round(
         # this only ever fires for thin OSM data.
         db.add(RoundHole(round_id=r.id, hole_id=h.id, par=h.par or 4))
     db.commit()
+    db.refresh(r)
+
+    if payload.holes:
+        by_number = {rh.hole.number: rh for rh in r.holes}
+        for incoming in payload.holes:
+            rh = by_number.get(incoming.number)
+            if rh is None:
+                raise HTTPException(
+                    status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    f"Course has no hole {incoming.number}",
+                )
+            rh.strokes = incoming.strokes
+            rh.putts = incoming.putts
+            rh.fairway_hit = incoming.fairway_hit
+            rh.penalties = incoming.penalties
+        db.commit()
+
     return _round_out(db, r)
 
 
@@ -116,7 +189,7 @@ def update_round(
 def update_round_hole(
     round_id: int,
     number: int,
-    payload: RoundHoleUpdate,
+    payload: RoundHolePatch,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> RoundOut:
@@ -128,7 +201,8 @@ def update_round_hole(
     ).scalar_one_or_none()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Hole not found in round")
-    row.strokes = payload.strokes
+    for field, value in payload.model_dump(exclude_unset=True).items():
+        setattr(row, field, value)
     db.commit()
     return _round_out(db, r)
 
