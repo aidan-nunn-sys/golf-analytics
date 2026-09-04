@@ -86,6 +86,47 @@ def seeded_user_and_course(db_session):
 
 
 @pytest.fixture
+def seeded_course_via_api(client, auth_headers):
+    """An 18-hole course created through the API; returns its id."""
+    resp = client.post(
+        "/api/courses",
+        json={
+            "name": "Lonnie Poole",
+            "holes": [{"number": n, "par": 4} for n in range(1, 19)],
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201, resp.text
+    return resp.json()["id"]
+
+
+@pytest.fixture
+def rated_course(client, auth_headers, seeded_course_via_api):
+    """A course with stroke indexes and a Blue tee rated for 18/front9/back9.
+    Returns (course_id, tee_id)."""
+    course_id = seeded_course_via_api
+    client.put(
+        f"/api/courses/{course_id}/stroke-index",
+        json={"stroke_indexes": list(range(1, 19))},
+        headers=auth_headers,
+    )
+    tee_id = client.post(
+        f"/api/courses/{course_id}/tees",
+        json={"name": "Blue", "yardage": 6200},
+        headers=auth_headers,
+    ).json()["id"]
+    for scope, cr, slope, par in [
+        ("18", 71.2, 132, 72), ("front9", 35.6, 130, 36), ("back9", 35.6, 134, 36),
+    ]:
+        client.put(
+            f"/api/tees/{tee_id}/ratings/{scope}",
+            json={"course_rating": cr, "slope_rating": slope, "par": par},
+            headers=auth_headers,
+        )
+    return course_id, tee_id
+
+
+@pytest.fixture
 def auth_headers(client, db_session):
     bootstrap_admin(db_session)
     resp = client.post(

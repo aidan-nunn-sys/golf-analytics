@@ -76,3 +76,86 @@ def test_tee_rating_scope_unique_per_tee_set(db_session):
     with pytest.raises(IntegrityError):
         db_session.flush()
 
+
+
+VALID_SI = list(range(1, 19))
+
+
+def test_create_and_list_tees(client, auth_headers, seeded_course_via_api):
+    course_id = seeded_course_via_api
+    resp = client.post(
+        f"/api/courses/{course_id}/tees",
+        json={"name": "White", "yardage": 5800},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["name"] == "White"
+
+    listed = client.get(f"/api/courses/{course_id}/tees", headers=auth_headers)
+    assert listed.status_code == 200
+    assert [t["name"] for t in listed.json()] == ["White"]
+
+
+def test_upsert_rating_by_scope(client, auth_headers, seeded_course_via_api):
+    course_id = seeded_course_via_api
+    tee_id = client.post(
+        f"/api/courses/{course_id}/tees", json={"name": "Blue"}, headers=auth_headers
+    ).json()["id"]
+
+    body = {"course_rating": 71.2, "slope_rating": 132, "par": 72}
+    first = client.put(f"/api/tees/{tee_id}/ratings/18", json=body, headers=auth_headers)
+    assert first.status_code == 200
+
+    # Upsert, not duplicate.
+    body["slope_rating"] = 134
+    second = client.put(f"/api/tees/{tee_id}/ratings/18", json=body, headers=auth_headers)
+    assert second.status_code == 200
+
+    ratings = client.get(f"/api/courses/{course_id}/tees", headers=auth_headers).json()
+    assert len(ratings[0]["ratings"]) == 1
+    assert ratings[0]["ratings"][0]["slope_rating"] == 134
+
+
+def test_rating_rejects_bad_scope_and_slope(client, auth_headers, seeded_course_via_api):
+    course_id = seeded_course_via_api
+    tee_id = client.post(
+        f"/api/courses/{course_id}/tees", json={"name": "Blue"}, headers=auth_headers
+    ).json()["id"]
+
+    bad_scope = client.put(
+        f"/api/tees/{tee_id}/ratings/middle",
+        json={"course_rating": 71.2, "slope_rating": 132, "par": 72},
+        headers=auth_headers,
+    )
+    assert bad_scope.status_code == 422
+
+    bad_slope = client.put(
+        f"/api/tees/{tee_id}/ratings/18",
+        json={"course_rating": 71.2, "slope_rating": 200, "par": 72},
+        headers=auth_headers,
+    )
+    assert bad_slope.status_code == 422
+
+
+def test_stroke_index_must_be_a_permutation(client, auth_headers, seeded_course_via_api):
+    course_id = seeded_course_via_api
+
+    ok = client.put(
+        f"/api/courses/{course_id}/stroke-index",
+        json={"stroke_indexes": VALID_SI},
+        headers=auth_headers,
+    )
+    assert ok.status_code == 200
+
+    duplicated = VALID_SI[:-1] + [1]
+    bad = client.put(
+        f"/api/courses/{course_id}/stroke-index",
+        json={"stroke_indexes": duplicated},
+        headers=auth_headers,
+    )
+    assert bad.status_code == 422
+    assert "permutation" in bad.json()["detail"].lower()
+
+
+def test_tee_endpoints_require_auth(client, seeded_course_via_api):
+    assert client.get(f"/api/courses/{seeded_course_via_api}/tees").status_code == 401
