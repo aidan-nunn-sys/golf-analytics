@@ -31,5 +31,7 @@ idea → spec (specs/) → approved → plan (plans/) → build → verified →
 - **Pillar 2 — On-course GPS + OSM course management** — ✅ complete.
   - Backend: `specs/2026-07-11-on-course-gps-course-management-design.md` → `plans/2026-07-11-backend-on-course-gps-course-management.md`.
   - Frontend: `specs/2026-07-19-frontend-on-course-gps-design.md` → `plans/2026-07-19-frontend-on-course-gps.md`.
-- **Pillar 3 — Score & stats logging** (fairways, GIR, putts, handicap): spec `specs/2026-09-03-scores-stats-handicap-design.md` — awaiting approval.
+- **Pillar 3 — Score & stats logging** (fairways, GIR, putts, handicap).
+  - Backend: `specs/2026-09-03-scores-stats-handicap-design.md` → `plans/2026-09-03-backend-scores-stats-handicap.md` — ✅ complete.
+  - Frontend: Plan 3b — not yet written.
 - **Pillar 4** (learning profile, strokes gained): future slice, its own spec → plan.

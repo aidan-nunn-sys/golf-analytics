@@ -1,5 +1,18 @@
 # Pillar 3 Backend — Scores, Round Stats & Handicap — Implementation Plan
 
+> **✅ STATUS: COMPLETE (verified 2026-09-04).** All 10 tasks done. Backend suite
+> green (**164 tests**). The Alembic chain (5 revisions) applies to a fresh DB and
+> round-trips upgrade → downgrade base → upgrade. The Docker image builds, runs its
+> migrations on startup, and serves `/api/health`, `/api/docs` and the SPA, with all
+> ten Pillar 3 routes present in `openapi.json`.
+>
+> Corrections made during execution, all recorded in the spec's decision log:
+> a wrong expected value in Task 3 (10.9 → 11.0); `HOLES_FOR_9` declared but never
+> enforced, so Rule 2.2b was documented and not applied; a missing tee/course
+> cross-check in `_snapshot_rating`; the round-status filter widened to include
+> `abandoned` rounds; and a pre-existing Dockerfile bug that left the container
+> unable to start.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add tee ratings, per-hole stat detail, backlog rounds, derived round statistics and a WHS Handicap Index to the backend.

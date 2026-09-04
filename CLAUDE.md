@@ -28,7 +28,7 @@ Document the journey to a working application as we go — the repo should alway
 
 1. **Club & shot analysis** (range engine) — *v1, the foundation.* ✅ Built (backend + frontend).
 2. **On-course GPS + OpenStreetMap course management** — ✅ Built (backend + frontend).
-3. **Score / stats / handicap logging** — *next slice.* Fairways, GIR, putts, handicap. Strokes-per-hole was pulled forward into Pillar 2 and already exists.
+3. **Score / stats / handicap logging** — ✅ Backend built (Plan 3a). Tee ratings, per-hole stat detail, backlog rounds, WHS Handicap Index. Frontend (Plan 3b) is the next slice.
 4. Learning profile + recommendations (north star: strokes gained) — later.
 
 Each later pillar gets its own spec → plan → build cycle. Don't pull future-pillar work into the current slice.
@@ -62,11 +62,17 @@ backend/app/
   deps.py            get_current_user / get_current_admin
   seed.py            create_user (also seeds standard bag), bootstrap_admin
   standard_bag.py    default clubs seeded per new user
-  models/            User, Club, RangeSession, Shot, Course, Hole, Round, RoundHole
+  models/            User, Club, RangeSession, Shot, Course, Hole, Round, RoundHole, TeeSet, TeeRating
   schemas/           Pydantic in/out per resource
-  routers/           auth, admin, clubs, sessions, shots, stats, courses, rounds
+  routers/           auth, admin, clubs, sessions, shots, stats, courses, rounds, tees
   stats/engine.py    compute_club_stats, compute_gapping (derived, never stored)
   stats/geo.py       haversine / geo helpers for GPS shot measurement
+  stats/round_stats.py   GIR, fairways, putts per GIR, scrambling (derived)
+  stats/handicap/    WHS engine, pure functions:
+                       strokes.py      stroke allocation, net double bogey, par+5, net par
+                       differential.py adjusted gross score, Score Differentials, rounding
+                       index.py        Handicap Index, fewer-than-20 table, soft/hard caps
+                       history.py      the chronological walk (the only ordering-aware module)
 backend/alembic/     migration environment; versions/ has the baseline + 3 migrations
 backend/tests/       one test_*.py per router/module
 
@@ -118,6 +124,11 @@ First run creates the admin from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 - **Reserved-but-not-wired fields exist on purpose** (`accuracy`, `source = launch_monitor`). Leave the seams; don't build UI/flows for them until their pillar.
 - **Schema changes go through Alembic.** Add a migration for every model change and verify it applies to a fresh DB *and* on top of the existing chain. (`create_all()` was v1-only and is no longer the schema source.)
 - **TDD for the stats engine.** It's pure functions over known inputs — write the failing test first (see `test_stats_engine.py`).
+- **The handicap recomputes from raw hole scores on every request.** `app/stats/handicap/history.py` replays the player's rounds chronologically because Adjusted Gross Score depends on the Index established by *earlier* rounds. Never add a cached Index column or a stored differential — correcting an old round must repair every downstream number automatically.
+- **Round rating is snapshotted, not looked up.** `Round.course_rating/slope_rating/course_par` are copied from the `TeeRating` at creation. Courses get re-rated; reading live would retroactively rewrite scoring history.
+- **Don't "fix" a WHS constant.** Every one is cited to a rule in `specs/2026-09-03-scores-stats-handicap-design.md` §7 and was verified against the 2024 Rules of Handicapping. Counterintuitive but correct: an 18-hole score needs 10 holes (not 14); minus differentials round *toward* zero; plus handicaps give strokes back from stroke index 18; caps are inert until 20 acceptable scores; 9-hole rounds deliberately do not feed the Index.
+- **Course yardages are whole yards** (`TeeSet.yardage` is `Integer`) — published scorecard figures. `Shot.carry_yards` is `Float` because it's a measured distance. Both are yards; the units rule is about never storing meters.
+- **`alembic.ini` and `alembic/` must stay in the Docker image** — the app's lifespan runs migrations at startup and loads `/app/alembic.ini`.
 - **`localStorage` under test:** Node 22+ ships an experimental built-in `localStorage` global that is `undefined` without `--localstorage-file` and shadows jsdom's. `vitest.setup.ts` installs an in-memory `Storage` when it's missing and clears it between tests — don't remove it or every auth-touching test fails on modern Node.
 
 ## API surface
@@ -134,13 +145,16 @@ All routes are served under `/api`.
 
 **Rounds** — `POST|GET /rounds` · `GET|PATCH /rounds/{id}` · `PATCH /rounds/{id}/holes/{number}` (strokes) · `POST /rounds/{id}/shots` (GPS-measured)
 
-**Stats** — `GET /clubs/{id}/stats` · `GET /stats/gapping` · `GET /stats/dashboard`
+**Tees & ratings** — `GET|POST /courses/{id}/tees` · `PATCH|DELETE /tees/{id}` · `PUT /tees/{id}/ratings/{scope}` (scope ∈ `18`/`front9`/`back9`) · `PUT /courses/{id}/stroke-index`
+
+**Stats** — `GET /clubs/{id}/stats` · `GET /stats/gapping` · `GET /stats/dashboard` · `GET /rounds/{id}/stats` · `GET /stats/handicap` · `GET /stats/rounds`
 
 ## Status
 
-Pillars 1 and 2 complete, backend and frontend, packaged and served single-origin via Docker.
+Pillars 1 and 2 complete (backend + frontend). Pillar 3 **backend** complete; its frontend is not built.
 
-- Backend: **57 tests** green; 4 Alembic migrations apply cleanly.
+- Backend: **164 tests** green; 5 Alembic migrations apply to a fresh DB and round-trip to base.
 - Frontend: **97 tests** green (Vitest + RTL); `tsc -b --noEmit` clean.
+- Docker image builds, migrates on startup, and serves `/api/health`, `/api/docs` and the SPA.
 
-**Next:** Pillar 3 — score & stats logging (fairways, GIR, putts, handicap).
+**Next:** Plan 3b — Pillar 3 frontend (tee/rating setup, scorecard stat entry, fast backlog entry, handicap screen).
