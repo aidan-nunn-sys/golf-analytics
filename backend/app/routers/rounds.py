@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Club, Course, Hole, Round, RoundHole, Shot, TeeRating, TeeSet, User
+from app.routers.stats import _round_records, _round_stats_for
 from app.schemas.round import (
     RoundCreate,
     RoundHoleOut,
@@ -13,7 +14,9 @@ from app.schemas.round import (
     RoundUpdate,
 )
 from app.schemas.shot import RoundShotCreate, ShotOut
+from app.schemas.stats import RoundStats
 from app.stats.geo import haversine_yards
+from app.stats.handicap.history import walk_history
 
 router = APIRouter(prefix="/rounds", tags=["rounds"])
 
@@ -245,3 +248,14 @@ def create_round_shot(
     db.commit()
     db.refresh(shot)
     return shot
+
+
+@router.get("/{round_id}/stats", response_model=RoundStats)
+def get_round_stats(
+    round_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> RoundStats:
+    r = _owned_round(db, round_id, user)
+    results = {x["round_id"]: x for x in walk_history(_round_records(db, user))}
+    return _round_stats_for(r, results.get(r.id))

@@ -5,10 +5,28 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import get_current_user
 from app.models import Club, RangeSession, Round, Shot, User
-from app.schemas.stats import ClubStats, Dashboard, GapRow
+from app.schemas.stats import (
+    ClubStats,
+    Dashboard,
+    DifferentialRow,
+    GapRow,
+    HandicapOut,
+    RoundStats,
+    RoundTrendOut,
+)
 from app.stats.engine import compute_club_stats, compute_gapping
+from app.stats.handicap.history import current_state, walk_history
+from app.stats.round_stats import compute_round_stats
 
 router = APIRouter(tags=["stats"])
+
+# A round only feeds the handicap walk / trend views once it has a final
+# scorecard. `completed` and `abandoned` both qualify: an 18-hole round
+# walked off after 13 holes is `abandoned`, not `completed`, but it still
+# produces a valid differential (Rule 2.2a needs only 10 scored holes) and
+# the project spec treats partial rounds as first-class, not silently
+# dropped. `in_progress` rounds are excluded — their scorecard isn't final.
+_SCORED_STATUSES = ("completed", "abandoned")
 
 
 def _shots_for_club(db: Session, club_id: int, user_id: int) -> list[dict]:
@@ -82,3 +100,112 @@ def dashboard(
         for c in clubs
     ]
     return {"clubs": club_blocks, "gapping": _gapping_rows(db, user.id)}
+
+
+def _round_records(db: Session, user: User) -> list[dict]:
+    """Load the user's rounds as RoundRecords for the handicap walk.
+
+    Scope comes from the round's declared hole_count/nine, and rating values
+    from the round's own snapshot — never live from the tee (spec 3.2).
+    Includes both `completed` and `abandoned` rounds: see _SCORED_STATUSES.
+    """
+    rounds = (
+        db.query(Round)
+        .filter(Round.user_id == user.id, Round.status.in_(_SCORED_STATUSES))
+        .all()
+    )
+    records = []
+    for r in rounds:
+        holes = []
+        for rh in r.holes:
+            holes.append(
+                {
+                    "par": rh.par,
+                    "stroke_index": rh.hole.stroke_index or rh.hole.number,
+                    "strokes": rh.strokes,
+                }
+            )
+        records.append(
+            {
+                "round_id": r.id,
+                "date": r.date,
+                "scope": "18" if r.hole_count == 18 else f"{r.nine}9",
+                "course_rating": r.course_rating,
+                "slope_rating": r.slope_rating,
+                "par": r.course_par,
+                "holes": holes,
+            }
+        )
+    return records
+
+
+def _round_stats_for(r: Round, result: dict | None) -> RoundStats:
+    holes = [
+        {
+            "par": rh.par,
+            "strokes": rh.strokes,
+            "putts": rh.putts,
+            "fairway_hit": rh.fairway_hit,
+            "penalties": rh.penalties,
+        }
+        for rh in r.holes
+    ]
+    return RoundStats(
+        **compute_round_stats(holes),
+        differential=(result or {}).get("differential"),
+        counts_toward_index=(result or {}).get("counts_toward_index", False),
+        reason=(result or {}).get("reason"),
+    )
+
+
+@router.get("/stats/handicap", response_model=HandicapOut)
+def get_handicap(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> HandicapOut:
+    results = walk_history(_round_records(db, user))
+    state = current_state(results)
+    counting_ids = set(state["counting_round_ids"])
+    return HandicapOut(
+        index=state["index"],
+        low_index=state["low_index"],
+        cap_applied=state["cap_applied"],
+        rounds_needed=state["rounds_needed"],
+        differentials=[
+            DifferentialRow(
+                round_id=r["round_id"],
+                date=r["date"],
+                differential=r["differential"],
+                counts_toward_index=r["counts_toward_index"],
+                reason=r["reason"],
+                is_counting=r["round_id"] in counting_ids,
+            )
+            for r in results
+        ],
+    )
+
+
+@router.get("/stats/rounds", response_model=RoundTrendOut)
+def get_round_trend(
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> RoundTrendOut:
+    results = {r["round_id"]: r for r in walk_history(_round_records(db, user))}
+    rounds = (
+        db.query(Round)
+        .filter(Round.user_id == user.id, Round.status.in_(_SCORED_STATUSES))
+        .order_by(Round.date.desc())
+        .limit(limit)
+        .all()
+    )
+    stats = [_round_stats_for(r, results.get(r.id)) for r in rounds]
+
+    def _mean(key: str) -> float | None:
+        values = [getattr(s, key) for s in stats if getattr(s, key) is not None]
+        return round(sum(values) / len(values), 1) if values else None
+
+    return RoundTrendOut(
+        rounds=stats,
+        averages={k: _mean(k) for k in ("score", "putts", "gir_pct", "fairway_pct")},
+    )
