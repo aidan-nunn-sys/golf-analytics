@@ -281,3 +281,34 @@ def test_patch_hole_accepts_stat_detail(client, auth_headers, rated_course):
     assert resp.status_code == 200
     hole = next(h for h in resp.json()["holes"] if h["hole_number"] == 1)
     assert (hole["putts"], hole["fairway_hit"], hole["penalties"]) == (2, True, 1)
+
+
+def test_round_rejects_a_tee_from_a_different_course(client, auth_headers, rated_course):
+    """A tee_set_id must belong to the round's own course, not just be rated
+    for the requested scope (reviewer finding on Task 7/8)."""
+    course_id, _tee_id = rated_course
+
+    other_course_id = client.post(
+        "/api/courses",
+        json={
+            "name": "Other Course",
+            "holes": [{"number": n, "par": 4} for n in range(1, 19)],
+        },
+        headers=auth_headers,
+    ).json()["id"]
+    other_tee_id = client.post(
+        f"/api/courses/{other_course_id}/tees", json={"name": "Blue"}, headers=auth_headers
+    ).json()["id"]
+    client.put(
+        f"/api/tees/{other_tee_id}/ratings/18",
+        json={"course_rating": 70.0, "slope_rating": 120, "par": 72},
+        headers=auth_headers,
+    )
+
+    resp = client.post(
+        "/api/rounds",
+        json={"course_id": course_id, "date": "2026-09-01", "tee_set_id": other_tee_id},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 422
+    assert "course" in resp.json()["detail"].lower()

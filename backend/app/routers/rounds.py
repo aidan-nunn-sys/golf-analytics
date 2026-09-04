@@ -68,7 +68,7 @@ def _scope_for(hole_count: int, nine: str | None) -> str:
     return "18" if hole_count == 18 else f"{nine}9"
 
 
-def _snapshot_rating(db: Session, tee_set_id: int | None, scope: str):
+def _snapshot_rating(db: Session, tee_set_id: int | None, course_id: int, scope: str):
     """Copy rating/slope/par off the tee at creation so a later re-rating
     cannot rewrite this round's differential (spec 3.2)."""
     if tee_set_id is None:
@@ -76,6 +76,11 @@ def _snapshot_rating(db: Session, tee_set_id: int | None, scope: str):
     tee = db.get(TeeSet, tee_set_id)
     if tee is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tee set not found")
+    if tee.course_id != course_id:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "Tee does not belong to this course",
+        )
     rating = (
         db.query(TeeRating)
         .filter(TeeRating.tee_set_id == tee_set_id, TeeRating.scope == scope)
@@ -102,10 +107,10 @@ def create_round(
         select(Hole).where(Hole.course_id == course.id).order_by(Hole.number)
     ).all()
     if not holes:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Course has no holes")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Course has no holes")
     scope = _scope_for(payload.hole_count, payload.nine)
     course_rating, slope_rating, course_par = _snapshot_rating(
-        db, payload.tee_set_id, scope
+        db, payload.tee_set_id, payload.course_id, scope
     )
     r = Round(
         user_id=user.id,

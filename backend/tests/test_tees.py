@@ -77,7 +77,6 @@ def test_tee_rating_scope_unique_per_tee_set(db_session):
         db_session.flush()
 
 
-
 VALID_SI = list(range(1, 19))
 
 
