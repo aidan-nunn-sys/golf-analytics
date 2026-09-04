@@ -17,6 +17,7 @@ from app.schemas.shot import RoundShotCreate, ShotOut
 from app.schemas.stats import RoundStats
 from app.stats.geo import haversine_yards
 from app.stats.handicap.history import walk_history
+from app.stats.handicap.scope import scope_for
 
 router = APIRouter(prefix="/rounds", tags=["rounds"])
 
@@ -62,15 +63,6 @@ def _round_out(db: Session, r: Round) -> RoundOut:
     )
 
 
-def _scope_for(hole_count: int, nine: str | None) -> str:
-    """The TeeRating scope a round is played against.
-
-    Declared at creation and fixed — an 18-hole round abandoned at hole 12 is
-    still an 18-hole round against the 18-hole rating (spec 3.2).
-    """
-    return "18" if hole_count == 18 else f"{nine}9"
-
-
 def _snapshot_rating(db: Session, tee_set_id: int | None, course_id: int, scope: str):
     """Copy rating/slope/par off the tee at creation so a later re-rating
     cannot rewrite this round's differential (spec 3.2)."""
@@ -111,7 +103,7 @@ def create_round(
     ).all()
     if not holes:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Course has no holes")
-    scope = _scope_for(payload.hole_count, payload.nine)
+    scope = scope_for(payload.hole_count, payload.nine)
     course_rating, slope_rating, course_par = _snapshot_rating(
         db, payload.tee_set_id, payload.course_id, scope
     )

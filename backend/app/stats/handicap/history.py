@@ -17,7 +17,6 @@ from typing import TypedDict
 from app.stats.handicap.differential import (
     HoleScore,
     adjusted_gross_score,
-    round_differential,
     score_differential_9,
     score_differential_18,
 )
@@ -110,10 +109,14 @@ def walk_history(rounds: list[RoundRecord]) -> list[RoundResult]:
                     ags, record["course_rating"], record["slope_rating"]
                 )
             else:
-                differential = round_differential(
-                    score_differential_9(
-                        ags, record["course_rating"], record["slope_rating"]
-                    )
+                # Left UNROUNDED on purpose: Rule 5.1b rounds only once the
+                # 9-hole differential is combined with the player's expected
+                # score over the other nine, and that table is unpublished
+                # (spec 2.3). This value is displayed, never combined, so
+                # rounding it here would round at a step the Rules do not
+                # have. Matches `score_differential_9`'s own docstring.
+                differential = score_differential_9(
+                    ags, record["course_rating"], record["slope_rating"]
                 )
 
         if reason is None and differential is not None:

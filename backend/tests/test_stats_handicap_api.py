@@ -1,3 +1,6 @@
+import pytest
+
+
 def _post_round(client, auth_headers, course_id, tee_id, date, strokes):
     return client.post(
         "/api/rounds",
@@ -189,3 +192,33 @@ def test_stats_rounds_trend_is_per_user(client, auth_headers, rated_course):
 def test_stats_endpoints_require_auth(client):
     assert client.get("/api/stats/handicap").status_code == 401
     assert client.get("/api/stats/rounds").status_code == 401
+
+
+def test_nine_hole_differential_is_computed_over_the_nine_actually_played(
+    client, auth_headers, rated_course
+):
+    """Rule 5.1b over the front nine ONLY: (113 / 130) x (36 - 35.6) = 0.3477.
+
+    Regression guard for the adapter bug: `_round_records` used to hand the
+    engine all 18 `RoundHole` rows regardless of the round's declared scope,
+    so the back nine was padded at net par and the resulting 18-hole-sized
+    gross was divided by the 9-hole rating - reporting ~31.6, roughly 90x
+    too large. Spec 2.3: a wrong number is worse than no number.
+    """
+    course_id, tee_id = rated_course
+    round_id = client.post(
+        "/api/rounds",
+        json={
+            "course_id": course_id, "date": "2026-09-01", "tee_set_id": tee_id,
+            "hole_count": 9, "nine": "front", "status": "completed",
+            "holes": [{"number": n, "strokes": 4} for n in range(1, 10)],
+        },
+        headers=auth_headers,
+    ).json()["id"]
+
+    body = client.get(f"/api/rounds/{round_id}/stats", headers=auth_headers).json()
+    assert body["score"] == 36
+    assert body["to_par"] == 0
+    assert body["differential"] == pytest.approx((113 / 130) * (36 - 35.6), abs=1e-4)
+    assert body["counts_toward_index"] is False
+    assert "9-hole" in body["reason"]

@@ -16,6 +16,7 @@ from app.schemas.stats import (
 )
 from app.stats.engine import compute_club_stats, compute_gapping
 from app.stats.handicap.history import current_state, walk_history
+from app.stats.handicap.scope import covers_hole, scope_for
 from app.stats.round_stats import compute_round_stats
 
 router = APIRouter(tags=["stats"])
@@ -108,6 +109,14 @@ def _round_records(db: Session, user: User) -> list[dict]:
     Scope comes from the round's declared hole_count/nine, and rating values
     from the round's own snapshot — never live from the tee (spec 3.2).
     Includes both `completed` and `abandoned` rounds: see _SCORED_STATUSES.
+
+    Holes are sliced to the round's declared scope. `create_round` always
+    lays down all 18 `RoundHole` rows (the course has 18 holes whichever
+    nine you walk), so a front-nine round carries nine rows it never played.
+    Handing those to the engine padded the unplayed nine at net par and then
+    divided an 18-hole-sized gross by the 9-hole Course Rating — a ~90x wrong
+    differential. Slicing here rather than at creation also repairs rounds
+    already in the database.
     """
     rounds = (
         db.query(Round)
@@ -116,20 +125,21 @@ def _round_records(db: Session, user: User) -> list[dict]:
     )
     records = []
     for r in rounds:
-        holes = []
-        for rh in r.holes:
-            holes.append(
-                {
-                    "par": rh.par,
-                    "stroke_index": rh.hole.stroke_index or rh.hole.number,
-                    "strokes": rh.strokes,
-                }
-            )
+        scope = scope_for(r.hole_count, r.nine)
+        holes = [
+            {
+                "par": rh.par,
+                "stroke_index": rh.hole.stroke_index or rh.hole.number,
+                "strokes": rh.strokes,
+            }
+            for rh in sorted(r.holes, key=lambda rh: rh.hole.number)
+            if covers_hole(scope, rh.hole.number)
+        ]
         records.append(
             {
                 "round_id": r.id,
                 "date": r.date,
-                "scope": "18" if r.hole_count == 18 else f"{r.nine}9",
+                "scope": scope,
                 "course_rating": r.course_rating,
                 "slope_rating": r.slope_rating,
                 "par": r.course_par,
