@@ -552,7 +552,8 @@ def test_score_differential_18():
 
 
 def test_score_differential_18_applies_pcc():
-    assert score_differential_18(85, 71.2, 132, pcc=1.0) == 10.9
+    # (113 / 132) * (85 - 71.2 - 1.0) = 10.9576 -> 11.0
+    assert score_differential_18(85, 71.2, 132, pcc=1.0) == 11.0
 
 
 def test_score_differential_9_halves_pcc_and_stays_unrounded():
