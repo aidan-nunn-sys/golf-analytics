@@ -77,7 +77,7 @@ def import_course(
 
     if not payload.holes:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             "Manual course import requires at least one hole",
         )
     course = Course(name=payload.name, import_source="manual")

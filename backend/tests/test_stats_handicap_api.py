@@ -272,3 +272,10 @@ def test_round_on_a_course_without_stroke_indexes_is_not_scored(
         d["reason"] == "This course has no stroke indexes set"
         for d in body["differentials"]
     )
+
+
+def test_stats_rounds_limit_is_bounded(client, auth_headers, rated_course):
+    """An unbounded limit lets one request ask for the whole scoring history."""
+    assert client.get("/api/stats/rounds?limit=0", headers=auth_headers).status_code == 422
+    assert client.get("/api/stats/rounds?limit=1000", headers=auth_headers).status_code == 422
+    assert client.get("/api/stats/rounds?limit=100", headers=auth_headers).status_code == 200

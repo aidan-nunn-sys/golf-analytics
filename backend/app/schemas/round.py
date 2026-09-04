@@ -40,12 +40,30 @@ class RoundHoleIn(BaseModel):
 
 class RoundCreate(BaseModel):
     course_id: int
-    date: date_type = Field(default_factory=date_type.today)
+    # Defaulted to today only for a round being played now. See check_date.
+    date: date_type | None = None
     tee_set_id: int | None = None
     hole_count: Literal[9, 18] = 18
     nine: Literal["front", "back"] | None = None
     status: RoundStatus = "in_progress"
     holes: list[RoundHoleIn] | None = None
+
+    @model_validator(mode="after")
+    def check_date(self):
+        """A round entered as already played must state when it was played.
+
+        Defaulting to today is right for a live round and a hazard for a
+        backlog one: the handicap walk is ordered by date, so a round from
+        last summer silently stamped with today's date reorders the record
+        and changes the Adjusted Gross Score of every round after it.
+        """
+        if self.date is None:
+            if self.status != "in_progress":
+                raise ValueError(
+                    "A round entered as already played must state its date"
+                )
+            self.date = date_type.today()
+        return self
 
     @model_validator(mode="after")
     def check_nine(self):

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -207,7 +207,10 @@ def get_handicap(
 
 @router.get("/stats/rounds", response_model=RoundTrendOut)
 def get_round_trend(
-    limit: int = 20,
+    # Bounded: the walk replays the player's whole record on every request,
+    # and an unbounded limit lets one query ask for the entire scoring
+    # history as a single response.
+    limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> RoundTrendOut:

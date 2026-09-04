@@ -24,6 +24,17 @@ from app.schemas.tee import (
 
 router = APIRouter(tags=["tees"])
 
+# Courses, tee sets and ratings are SHARED across users by design - two people
+# who play the same course should not each re-enter its 20 numbers - so these
+# endpoints authenticate but do not scope to an owner. Any authenticated user
+# can therefore PATCH or DELETE a tee another user's rounds referenced. That
+# is accepted, not an oversight: `Round` snapshots course_rating/slope_rating/
+# course_par at creation (spec 3.2), so an edit here cannot rewrite a single
+# existing differential - the blast radius is rounds created afterwards. This
+# is a self-hosted app for the owner and friends; per-user course libraries
+# would cost more than the trust model is worth. Rounds, holes and every stat
+# derived from them remain strictly per-user.
+
 
 def _course_or_404(db: Session, course_id: int) -> Course:
     course = db.get(Course, course_id)

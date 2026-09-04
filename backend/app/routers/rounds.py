@@ -131,7 +131,7 @@ def create_round(
     db.commit()
     db.refresh(r)
     for h in holes:
-        # ponytail: OSM-imported holes can have a null par (no par tag found);
+        # NOTE: OSM-imported holes can have a null par (no par tag found);
         # RoundHole.par is non-nullable so we default to 4 rather than crash.
         # Manual courses always supply par (ManualHoleIn.par is required), so
         # this only ever fires for thin OSM data.

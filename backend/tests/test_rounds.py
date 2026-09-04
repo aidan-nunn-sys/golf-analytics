@@ -339,3 +339,35 @@ def test_round_rejects_a_tee_from_a_different_course(client, auth_headers, rated
     )
     assert resp.status_code == 422
     assert "course" in resp.json()["detail"].lower()
+
+
+def test_backlog_round_must_state_its_date(client, auth_headers, rated_course):
+    """Defaulting a played round to today reorders the chronological walk.
+
+    The handicap engine replays rounds in date order and each round's
+    Adjusted Gross Score depends on the Index established by the ones before
+    it, so a round from last summer stamped with today's date quietly changes
+    every number after it. A live round may still default to today.
+    """
+    course_id, tee_id = rated_course
+    resp = client.post(
+        "/api/rounds",
+        json={
+            "course_id": course_id, "tee_set_id": tee_id, "status": "completed",
+            "holes": [{"number": n, "strokes": 5} for n in range(1, 19)],
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 422
+    assert "date" in resp.text
+
+    # ...while a round being played right now still defaults to today.
+    from datetime import date
+
+    live = client.post(
+        "/api/rounds",
+        json={"course_id": course_id, "tee_set_id": tee_id},
+        headers=auth_headers,
+    )
+    assert live.status_code == 201
+    assert live.json()["date"] == date.today().isoformat()
