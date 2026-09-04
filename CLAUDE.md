@@ -151,9 +151,9 @@ All routes are served under `/api`.
 
 ## Status
 
-Pillars 1 and 2 complete (backend + frontend). Pillar 3 **backend** complete; its frontend is not built.
+Pillars 1 and 2 complete (backend + frontend). Pillar 3 **backend** complete (including the whole-branch review fix wave — see the Pillar 3 spec's 2026-09-04 decision log entries); its frontend is not built.
 
-- Backend: **164 tests** green; 5 Alembic migrations apply to a fresh DB and round-trip to base.
+- Backend: **180 tests** green; 5 Alembic migrations apply to a fresh DB and round-trip to base.
 - Frontend: **97 tests** green (Vitest + RTL); `tsc -b --noEmit` clean.
 - Docker image builds, migrates on startup, and serves `/api/health`, `/api/docs` and the SPA.
 
