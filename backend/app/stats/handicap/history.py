@@ -58,10 +58,19 @@ def _acceptability(record: RoundRecord, holes_played: int) -> str | None:
     if record["course_rating"] is None or record["slope_rating"] is None:
         return "This tee has no rating for the scope played"
     if record["scope"] != "18":
+        if holes_played < HOLES_FOR_9:
+            return f"Only {holes_played} holes scored; a 9-hole score requires all 9"
         return "9-hole rounds do not count toward the Index (see spec 2.3)"
     if holes_played < MIN_HOLES_FOR_18:
         return f"Only {holes_played} holes scored; an 18-hole score needs at least 10 holes"
     return None
+
+
+def _meets_scope_minimum(record: RoundRecord, holes_played: int) -> bool:
+    """Whether enough holes were scored to compute a displayable differential."""
+    if record["scope"] == "18":
+        return holes_played >= MIN_HOLES_FOR_18
+    return holes_played >= HOLES_FOR_9
 
 
 def walk_history(rounds: list[RoundRecord]) -> list[RoundResult]:
@@ -90,7 +99,11 @@ def walk_history(rounds: list[RoundRecord]) -> list[RoundResult]:
         )
 
         differential: float | None = None
-        if record["course_rating"] is not None and record["slope_rating"] is not None:
+        if (
+            record["course_rating"] is not None
+            and record["slope_rating"] is not None
+            and _meets_scope_minimum(record, holes_played)
+        ):
             ags = adjusted_gross_score(record["holes"], ch)
             if record["scope"] == "18":
                 differential = score_differential_18(

@@ -97,3 +97,23 @@ def test_counting_round_ids_names_the_eight():
     results = walk_history([_round(n, 4 + (n % 5)) for n in range(1, 21)])
     state = current_state(results)
     assert len(state["counting_round_ids"]) == 8
+
+
+def test_nine_hole_round_with_too_few_holes_is_not_acceptable():
+    short_nine = _round(1, 5, scope="front9", rating=35.6, slope=130, course_par=36)
+    short_nine["holes"] = short_nine["holes"][:9]
+    for hole in short_nine["holes"][4:]:
+        hole["strokes"] = None
+    [result] = walk_history([short_nine])
+    assert result["counts_toward_index"] is False
+    assert result["differential"] is None
+    assert "9-hole rounds do not count" not in result["reason"]
+    assert "4 holes" in result["reason"]
+
+
+def test_eighteen_hole_round_too_short_has_no_differential():
+    short = _round(1, 5)
+    for hole in short["holes"][6:]:
+        hole["strokes"] = None
+    [result] = walk_history([short])
+    assert result["differential"] is None
