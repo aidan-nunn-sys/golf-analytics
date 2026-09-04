@@ -117,6 +117,13 @@ def _round_records(db: Session, user: User) -> list[dict]:
     divided an 18-hole-sized gross by the 9-hole Course Rating — a ~90x wrong
     differential. Slicing here rather than at creation also repairs rounds
     already in the database.
+
+    `stroke_index` is passed through as-is, INCLUDING None. Substituting the
+    hole number fabricated a stroke allocation: net double bogey and net par
+    both allocate by stroke index, so an index-less course produced a
+    plausible-looking differential and an Index with no stated reason. Spec
+    3.1 makes stroke index a precondition for acceptability, so the engine
+    now names it missing instead (`history._acceptability`).
     """
     rounds = (
         db.query(Round)
@@ -129,7 +136,7 @@ def _round_records(db: Session, user: User) -> list[dict]:
         holes = [
             {
                 "par": rh.par,
-                "stroke_index": rh.hole.stroke_index or rh.hole.number,
+                "stroke_index": rh.hole.stroke_index,
                 "strokes": rh.strokes,
             }
             for rh in sorted(r.holes, key=lambda rh: rh.hole.number)
@@ -140,6 +147,7 @@ def _round_records(db: Session, user: User) -> list[dict]:
                 "round_id": r.id,
                 "date": r.date,
                 "scope": scope,
+                "tee_set_id": r.tee_set_id,
                 "course_rating": r.course_rating,
                 "slope_rating": r.slope_rating,
                 "par": r.course_par,
