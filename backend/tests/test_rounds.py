@@ -147,3 +147,274 @@ def test_log_round_shot_defaults_hole_number_to_current_hole(client, auth_header
         headers=auth_headers,
     )
     assert resp.json()["hole_number"] == 3
+
+
+def test_round_snapshots_the_tee_rating(client, auth_headers, rated_course):
+    course_id, tee_id = rated_course
+    resp = client.post(
+        "/api/rounds",
+        json={"course_id": course_id, "date": "2026-09-01", "tee_set_id": tee_id},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["course_rating"] == 71.2
+    assert body["slope_rating"] == 132
+    assert body["course_par"] == 72
+    assert body["hole_count"] == 18
+
+
+def test_snapshot_does_not_change_when_the_tee_is_re_rated(
+    client, auth_headers, rated_course
+):
+    course_id, tee_id = rated_course
+    round_id = client.post(
+        "/api/rounds",
+        json={"course_id": course_id, "date": "2026-09-01", "tee_set_id": tee_id},
+        headers=auth_headers,
+    ).json()["id"]
+
+    client.put(
+        f"/api/tees/{tee_id}/ratings/18",
+        json={"course_rating": 69.0, "slope_rating": 118, "par": 72},
+        headers=auth_headers,
+    )
+
+    fetched = client.get(f"/api/rounds/{round_id}", headers=auth_headers).json()
+    assert fetched["course_rating"] == 71.2  # unchanged
+    assert fetched["slope_rating"] == 132
+
+
+def test_nine_hole_round_snapshots_the_nine_rating(client, auth_headers, rated_course):
+    course_id, tee_id = rated_course
+    resp = client.post(
+        "/api/rounds",
+        json={
+            "course_id": course_id, "date": "2026-09-01", "tee_set_id": tee_id,
+            "hole_count": 9, "nine": "front",
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["course_rating"] == 35.6
+    assert resp.json()["slope_rating"] == 130
+
+
+def test_nine_hole_round_requires_nine(client, auth_headers, rated_course):
+    course_id, tee_id = rated_course
+    resp = client.post(
+        "/api/rounds",
+        json={
+            "course_id": course_id, "date": "2026-09-01",
+            "tee_set_id": tee_id, "hole_count": 9,
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 422
+
+
+def test_round_on_a_tee_missing_the_required_scope_is_recorded_not_rejected(
+    client, auth_headers, seeded_course_via_api
+):
+    """Spec 3.2: the round IS created, with a null rating snapshot, and
+    `GET /rounds/{id}/stats` names the missing scope.
+
+    This previously 422'd, which threw away a real scorecard over a rating
+    the player can enter afterwards. The stats view still refuses to invent a
+    differential - it says why instead.
+    """
+    course_id = seeded_course_via_api
+    client.put(
+        f"/api/courses/{course_id}/stroke-index",
+        json={"stroke_indexes": list(range(1, 19))},
+        headers=auth_headers,
+    )
+    tee_id = client.post(
+        f"/api/courses/{course_id}/tees", json={"name": "Bare"}, headers=auth_headers
+    ).json()["id"]
+
+    resp = client.post(
+        "/api/rounds",
+        json={
+            "course_id": course_id, "date": "2026-09-01", "tee_set_id": tee_id,
+            "hole_count": 9, "nine": "front", "status": "completed",
+            "holes": [{"number": n, "strokes": 5} for n in range(1, 10)],
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["course_rating"] is None
+    assert body["slope_rating"] is None
+
+    stats = client.get(
+        f"/api/rounds/{body['id']}/stats", headers=auth_headers
+    ).json()
+    assert stats["score"] == 45              # the scorecard survived
+    assert stats["differential"] is None
+    assert stats["counts_toward_index"] is False
+    assert stats["reason"] == "This tee has no front-9 rating"
+
+
+def test_backlog_round_created_complete_with_inline_holes(
+    client, auth_headers, rated_course
+):
+    course_id, tee_id = rated_course
+    resp = client.post(
+        "/api/rounds",
+        json={
+            "course_id": course_id, "date": "2025-06-14", "tee_set_id": tee_id,
+            "status": "completed",
+            "holes": [{"number": n, "strokes": 5} for n in range(1, 19)],
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["status"] == "completed"
+    assert len(body["holes"]) == 18
+    assert all(h["strokes"] == 5 for h in body["holes"])
+
+
+def test_round_can_be_marked_abandoned(client, auth_headers, rated_course):
+    """Walking off is a real state (spec 3.2); it must not look in_progress."""
+    course_id, tee_id = rated_course
+    round_id = client.post(
+        "/api/rounds",
+        json={"course_id": course_id, "date": "2026-09-01", "tee_set_id": tee_id},
+        headers=auth_headers,
+    ).json()["id"]
+
+    resp = client.patch(
+        f"/api/rounds/{round_id}", json={"status": "abandoned"}, headers=auth_headers
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "abandoned"
+
+
+def test_patch_hole_accepts_stat_detail(client, auth_headers, rated_course):
+    course_id, tee_id = rated_course
+    round_id = client.post(
+        "/api/rounds",
+        json={"course_id": course_id, "date": "2026-09-01", "tee_set_id": tee_id},
+        headers=auth_headers,
+    ).json()["id"]
+
+    resp = client.patch(
+        f"/api/rounds/{round_id}/holes/1",
+        json={"strokes": 5, "putts": 2, "fairway_hit": True, "penalties": 1},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 200
+    hole = next(h for h in resp.json()["holes"] if h["hole_number"] == 1)
+    assert (hole["putts"], hole["fairway_hit"], hole["penalties"]) == (2, True, 1)
+
+
+def test_round_rejects_a_tee_from_a_different_course(client, auth_headers, rated_course):
+    """A tee_set_id must belong to the round's own course, not just be rated
+    for the requested scope (reviewer finding on Task 7/8)."""
+    course_id, _tee_id = rated_course
+
+    other_course_id = client.post(
+        "/api/courses",
+        json={
+            "name": "Other Course",
+            "holes": [{"number": n, "par": 4} for n in range(1, 19)],
+        },
+        headers=auth_headers,
+    ).json()["id"]
+    other_tee_id = client.post(
+        f"/api/courses/{other_course_id}/tees", json={"name": "Blue"}, headers=auth_headers
+    ).json()["id"]
+    client.put(
+        f"/api/tees/{other_tee_id}/ratings/18",
+        json={"course_rating": 70.0, "slope_rating": 120, "par": 72},
+        headers=auth_headers,
+    )
+
+    resp = client.post(
+        "/api/rounds",
+        json={"course_id": course_id, "date": "2026-09-01", "tee_set_id": other_tee_id},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 422
+    assert "course" in resp.json()["detail"].lower()
+
+
+def test_backlog_round_must_state_its_date(client, auth_headers, rated_course):
+    """Defaulting a played round to today reorders the chronological walk.
+
+    The handicap engine replays rounds in date order and each round's
+    Adjusted Gross Score depends on the Index established by the ones before
+    it, so a round from last summer stamped with today's date quietly changes
+    every number after it. A live round may still default to today.
+    """
+    course_id, tee_id = rated_course
+    resp = client.post(
+        "/api/rounds",
+        json={
+            "course_id": course_id, "tee_set_id": tee_id, "status": "completed",
+            "holes": [{"number": n, "strokes": 5} for n in range(1, 19)],
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 422
+    assert "date" in resp.text
+
+    # ...while a round being played right now still defaults to today.
+    from datetime import date
+
+    live = client.post(
+        "/api/rounds",
+        json={"course_id": course_id, "tee_set_id": tee_id},
+        headers=auth_headers,
+    )
+    assert live.status_code == 201
+    assert live.json()["date"] == date.today().isoformat()
+
+
+def test_unknown_inline_hole_number_leaves_no_orphaned_round(client, auth_headers):
+    """A 422 on inline hole validation must not persist the round.
+
+    The round and its RoundHole rows are committed before inline scores are
+    applied, so validating late used to leave a round behind for a failed
+    request. Uses a 9-hole course and an inline hole 12: within the schema's
+    1..18 bound, so it reaches the course check rather than being rejected by
+    Pydantic first.
+    """
+    course_id = client.post(
+        "/api/courses",
+        json={
+            "name": "Nine Holer",
+            "holes": [{"number": n, "par": 4} for n in range(1, 10)],
+        },
+        headers=auth_headers,
+    ).json()["id"]
+    tee_id = client.post(
+        f"/api/courses/{course_id}/tees", json={"name": "Blue"}, headers=auth_headers
+    ).json()["id"]
+    client.put(
+        f"/api/tees/{tee_id}/ratings/front9",
+        json={"course_rating": 35.6, "slope_rating": 130, "par": 36},
+        headers=auth_headers,
+    )
+    before = len(client.get("/api/rounds", headers=auth_headers).json())
+
+    resp = client.post(
+        "/api/rounds",
+        json={
+            "course_id": course_id,
+            "date": "2026-09-01",
+            "tee_set_id": tee_id,
+            "hole_count": 9,
+            "nine": "front",
+            "status": "completed",
+            "holes": [{"number": 12, "strokes": 5}],
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 422
+    assert "12" in resp.json()["detail"]
+
+    after = client.get("/api/rounds", headers=auth_headers).json()
+    assert len(after) == before

@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.database import SessionLocal, run_migrations
-from app.routers import admin, auth, clubs, courses, rounds, sessions, shots, stats
+from app.routers import admin, auth, clubs, courses, rounds, sessions, shots, stats, tees
 from app.seed import bootstrap_admin
 
 
@@ -32,6 +32,7 @@ api.include_router(rounds.router)
 api.include_router(sessions.router)
 api.include_router(shots.router)
 api.include_router(stats.router)
+api.include_router(tees.router)
 
 
 @api.get("/health")

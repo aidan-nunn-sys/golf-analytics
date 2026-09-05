@@ -10,6 +10,10 @@ RUN npm run build
 FROM python:3.12-slim
 WORKDIR /app
 COPY backend/pyproject.toml ./
+# alembic.ini and the migration scripts are required at runtime: the app's
+# lifespan calls run_migrations(), which loads /app/alembic.ini on startup.
+COPY backend/alembic.ini ./
+COPY backend/alembic ./alembic
 COPY backend/app ./app
 RUN pip install --no-cache-dir .
 COPY --from=web /web/dist ./app/static
