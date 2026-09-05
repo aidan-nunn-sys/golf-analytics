@@ -371,3 +371,50 @@ def test_backlog_round_must_state_its_date(client, auth_headers, rated_course):
     )
     assert live.status_code == 201
     assert live.json()["date"] == date.today().isoformat()
+
+
+def test_unknown_inline_hole_number_leaves_no_orphaned_round(client, auth_headers):
+    """A 422 on inline hole validation must not persist the round.
+
+    The round and its RoundHole rows are committed before inline scores are
+    applied, so validating late used to leave a round behind for a failed
+    request. Uses a 9-hole course and an inline hole 12: within the schema's
+    1..18 bound, so it reaches the course check rather than being rejected by
+    Pydantic first.
+    """
+    course_id = client.post(
+        "/api/courses",
+        json={
+            "name": "Nine Holer",
+            "holes": [{"number": n, "par": 4} for n in range(1, 10)],
+        },
+        headers=auth_headers,
+    ).json()["id"]
+    tee_id = client.post(
+        f"/api/courses/{course_id}/tees", json={"name": "Blue"}, headers=auth_headers
+    ).json()["id"]
+    client.put(
+        f"/api/tees/{tee_id}/ratings/front9",
+        json={"course_rating": 35.6, "slope_rating": 130, "par": 36},
+        headers=auth_headers,
+    )
+    before = len(client.get("/api/rounds", headers=auth_headers).json())
+
+    resp = client.post(
+        "/api/rounds",
+        json={
+            "course_id": course_id,
+            "date": "2026-09-01",
+            "tee_set_id": tee_id,
+            "hole_count": 9,
+            "nine": "front",
+            "status": "completed",
+            "holes": [{"number": 12, "strokes": 5}],
+        },
+        headers=auth_headers,
+    )
+    assert resp.status_code == 422
+    assert "12" in resp.json()["detail"]
+
+    after = client.get("/api/rounds", headers=auth_headers).json()
+    assert len(after) == before

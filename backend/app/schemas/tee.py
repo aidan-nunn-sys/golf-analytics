@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 Scope = Literal["18", "front9", "back9"]
 
@@ -25,6 +25,15 @@ class TeeSetIn(BaseModel):
 class TeeSetPatch(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=60)
     yardage: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def reject_null_name(self):
+        """`TeeSet.name` is non-nullable, so an explicit `{"name": null}` would
+        reach the DB and surface as a 500. Reject it as a 422 instead.
+        `yardage: null` stays legal — it clears an optional column."""
+        if "name" in self.model_fields_set and self.name is None:
+            raise ValueError("name cannot be null")
+        return self
 
 
 class TeeSetOut(BaseModel):

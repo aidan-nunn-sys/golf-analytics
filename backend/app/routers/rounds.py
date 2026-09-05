@@ -111,6 +111,16 @@ def create_round(
     ).all()
     if not holes:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Course has no holes")
+    if payload.holes:
+        # Validate inline hole numbers up front. The round and its RoundHole rows
+        # are committed below, so raising after that point would leave an orphaned
+        # round behind for a request that failed.
+        unknown = sorted({h.number for h in payload.holes} - {h.number for h in holes})
+        if unknown:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                f"Course has no hole {unknown[0]}",
+            )
     scope = scope_for(payload.hole_count, payload.nine)
     course_rating, slope_rating, course_par = _snapshot_rating(
         db, payload.tee_set_id, payload.course_id, scope
@@ -142,12 +152,9 @@ def create_round(
     if payload.holes:
         by_number = {rh.hole.number: rh for rh in r.holes}
         for incoming in payload.holes:
-            rh = by_number.get(incoming.number)
-            if rh is None:
-                raise HTTPException(
-                    status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    f"Course has no hole {incoming.number}",
-                )
+            # Numbers were validated against the course before anything was
+            # committed, so this lookup cannot miss.
+            rh = by_number[incoming.number]
             rh.strokes = incoming.strokes
             rh.putts = incoming.putts
             rh.fairway_hit = incoming.fairway_hit

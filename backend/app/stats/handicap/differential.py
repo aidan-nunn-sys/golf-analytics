@@ -8,7 +8,10 @@ from app.stats.handicap.strokes import max_hole_score, net_par
 
 class HoleScore(TypedDict):
     par: int
-    stroke_index: int
+    # None when the course has no stroke indexes entered. The walk rejects such
+    # a round rather than guessing an allocation, so this never reaches the
+    # stroke maths - but the type must say so.
+    stroke_index: int | None
     strokes: int | None  # None = hole not played
 
 

@@ -158,3 +158,21 @@ def test_stroke_index_must_be_a_permutation(client, auth_headers, seeded_course_
 
 def test_tee_endpoints_require_auth(client, seeded_course_via_api):
     assert client.get(f"/api/courses/{seeded_course_via_api}/tees").status_code == 401
+
+
+def test_patch_tee_rejects_explicit_null_name(client, auth_headers, seeded_course_via_api):
+    """`TeeSet.name` is non-nullable; an explicit null must 422, not 500."""
+    course_id = seeded_course_via_api
+    tee_id = client.post(
+        f"/api/courses/{course_id}/tees", json={"name": "Blue"}, headers=auth_headers
+    ).json()["id"]
+
+    resp = client.patch(f"/api/tees/{tee_id}", json={"name": None}, headers=auth_headers)
+    assert resp.status_code == 422
+
+    # The tee is untouched, and clearing the optional yardage still works.
+    assert client.patch(
+        f"/api/tees/{tee_id}", json={"yardage": None}, headers=auth_headers
+    ).status_code == 200
+    tees = client.get(f"/api/courses/{course_id}/tees", headers=auth_headers).json()
+    assert tees[0]["name"] == "Blue" and tees[0]["yardage"] is None
