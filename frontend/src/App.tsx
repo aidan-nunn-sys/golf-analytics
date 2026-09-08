@@ -12,6 +12,7 @@ import { Settings } from "./routes/Settings";
 import { CourseSearch } from "./routes/CourseSearch";
 import { CourseNew } from "./routes/CourseNew";
 import { CourseDetail } from "./routes/CourseDetail";
+import { TeeSetup } from "./routes/TeeSetup";
 import { RoundHistory } from "./routes/RoundHistory";
 import { LiveRound } from "./routes/LiveRound";
 import { RoundSummary } from "./routes/RoundSummary";
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="courses" element={<CourseSearch />} />
         <Route path="courses/new" element={<CourseNew />} />
         <Route path="courses/:id" element={<CourseDetail />} />
+        <Route path="courses/:id/tees" element={<TeeSetup />} />
         <Route path="clubs/:id" element={<ClubDetail />} />
         <Route path="gapping" element={<Gapping />} />
         <Route path="rounds" element={<RoundHistory />} />
