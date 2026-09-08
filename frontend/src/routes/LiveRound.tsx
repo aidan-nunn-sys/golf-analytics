@@ -47,6 +47,9 @@ export function LiveRound() {
   const unit = user?.unit_preference ?? "yards";
 
   const [strokesInput, setStrokesInput] = useState("");
+  const [puttsInput, setPuttsInput] = useState("");
+  const [fairway, setFairway] = useState<boolean | null>(null);
+  const [penaltiesInput, setPenaltiesInput] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [shotStart, setShotStart] = useState<Position | null>(null);
   const [confirmingShot, setConfirmingShot] = useState(false);
@@ -81,10 +84,31 @@ export function LiveRound() {
       setActionError("Enter a valid number of strokes.");
       return;
     }
+    const putts = Number(puttsInput);
+    if (puttsInput !== "" && (!Number.isInteger(putts) || putts < 0)) {
+      setActionError("Enter a valid number of putts.");
+      return;
+    }
+    const penalties = Number(penaltiesInput);
+    if (penaltiesInput !== "" && (!Number.isInteger(penalties) || penalties < 0)) {
+      setActionError("Enter a valid number of penalties.");
+      return;
+    }
     updateHole.mutate(
-      { number: round.current_hole, strokes },
       {
-        onSuccess: () => setStrokesInput(""),
+        number: round.current_hole,
+        strokes,
+        ...(puttsInput !== "" ? { putts } : {}),
+        ...(fairway !== null ? { fairway_hit: fairway } : {}),
+        ...(penaltiesInput !== "" ? { penalties } : {}),
+      },
+      {
+        onSuccess: () => {
+          setStrokesInput("");
+          setPuttsInput("");
+          setFairway(null);
+          setPenaltiesInput("");
+        },
         onError: (err: unknown) =>
           setActionError(err instanceof Error ? err.message : "Something went wrong. Please try again."),
       },
@@ -95,6 +119,9 @@ export function LiveRound() {
     if (!round) return;
     setActionError(null);
     setStrokesInput("");
+    setPuttsInput("");
+    setFairway(null);
+    setPenaltiesInput("");
     // Clear any in-progress two-tap shot state so it can't leak into the next hole — the route
     // is keyed on round id, not hole number, so this component doesn't remount on advance.
     setShotStart(null);
@@ -232,14 +259,54 @@ export function LiveRound() {
             </div>
           )}
 
-          <div className="flex items-center gap-2">
-            <input
-              className="w-24 rounded border px-3 py-1.5 text-sm"
-              placeholder="Strokes"
-              inputMode="numeric"
-              value={strokesInput}
-              onChange={(e) => setStrokesInput(e.target.value)}
-            />
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                className="w-24 rounded border px-3 py-1.5 text-sm"
+                placeholder="Strokes"
+                inputMode="numeric"
+                value={strokesInput}
+                onChange={(e) => setStrokesInput(e.target.value)}
+              />
+              <input
+                className="w-24 rounded border px-3 py-1.5 text-sm"
+                placeholder="Putts"
+                inputMode="numeric"
+                aria-label="Putts"
+                value={puttsInput}
+                onChange={(e) => setPuttsInput(e.target.value)}
+              />
+              <input
+                className="w-24 rounded border px-3 py-1.5 text-sm"
+                placeholder="Penalties"
+                inputMode="numeric"
+                aria-label="Penalties"
+                value={penaltiesInput}
+                onChange={(e) => setPenaltiesInput(e.target.value)}
+              />
+            </div>
+            {currentHole.par !== 3 && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFairway(true)}
+                  className={`rounded border px-3 py-1.5 text-sm ${
+                    fairway === true ? "bg-green-600 text-white" : ""
+                  }`}
+                >
+                  Fairway hit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFairway(false)}
+                  className={`rounded border px-3 py-1.5 text-sm ${
+                    fairway === false ? "bg-green-600 text-white" : ""
+                  }`}
+                >
+                  Fairway miss
+                </button>
+              </div>
+            )}
             <button onClick={onSaveStrokes} className="rounded bg-green-600 px-3 py-1.5 text-sm text-white">
               Save strokes
             </button>

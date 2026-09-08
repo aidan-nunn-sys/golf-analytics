@@ -38,7 +38,7 @@ const mockedUseAuth = vi.mocked(useAuth);
 
 const round = roundFixture({
   holes: [
-    roundHoleFixture(),
+    roundHoleFixture({ hole_number: 1, par: 4 }),
     roundHoleFixture({ hole_number: 2, par: 3 }),
   ],
 });
@@ -122,6 +122,30 @@ describe("LiveRound", () => {
       { number: 1, strokes: 5 },
       expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),
     );
+  });
+
+  it("saves putts and a fairway hit with strokes on a par 4", async () => {
+    const { updateHole } = setup();
+    const user = userEvent.setup();
+    await user.type(screen.getByPlaceholderText("Strokes"), "5");
+    await user.type(screen.getByPlaceholderText("Putts"), "2");
+    await user.click(screen.getByRole("button", { name: "Fairway hit" }));
+    await user.click(screen.getByRole("button", { name: "Save strokes" }));
+    expect(updateHole.mutate).toHaveBeenCalledWith(
+      { number: 1, strokes: 5, putts: 2, fairway_hit: true },
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+  });
+
+  it("hides the fairway control on a par 3", () => {
+    setup(roundFixture({
+      current_hole: 2,
+      holes: [
+        roundHoleFixture({ hole_number: 1, par: 4 }),
+        roundHoleFixture({ hole_number: 2, par: 3 }),
+      ],
+    }));
+    expect(screen.queryByRole("button", { name: "Fairway hit" })).not.toBeInTheDocument();
   });
 
   it("advances to the next hole", async () => {
