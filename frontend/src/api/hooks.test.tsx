@@ -6,6 +6,8 @@ import {
   useClubs,
   useCourseSearch,
   useCreateRound,
+  useUpdateRound,
+  useUpdateRoundHole,
   useLogRoundShot,
   useTees,
   useCreateTee,
@@ -15,11 +17,28 @@ import {
   useHandicap,
   useRoundStats,
   useRoundTrends,
+  keys,
 } from "./hooks";
 
 function wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+}
+
+function wrapperFor(qc: QueryClient) {
+  return function TestWrapper({ children }: { children: ReactNode }) {
+    return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+  };
+}
+
+function seedRoundStats(qc: QueryClient) {
+  qc.setQueryData(keys.roundStats(5), { score: 72 });
+  qc.setQueryData(keys.roundStats(9), { score: 80 });
+}
+
+function expectAllRoundStatsInvalidated(qc: QueryClient) {
+  expect(qc.getQueryState(keys.roundStats(5))?.isInvalidated).toBe(true);
+  expect(qc.getQueryState(keys.roundStats(9))?.isInvalidated).toBe(true);
 }
 
 describe("useClubs", () => {
@@ -63,16 +82,53 @@ describe("useCreateRound", () => {
   beforeEach(() => localStorage.clear());
 
   it("POSTs course_id to /rounds", async () => {
+    const qc = new QueryClient();
+    seedRoundStats(qc);
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true, status: 201,
       json: () => Promise.resolve({ id: 5, course_id: 3, date: "2026-07-19", status: "in_progress", current_hole: 1, holes: [] }),
     }) as never;
-    const { result } = renderHook(() => useCreateRound(), { wrapper });
+    const { result } = renderHook(() => useCreateRound(), { wrapper: wrapperFor(qc) });
     result.current.mutate({ course_id: 3 });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const [url, opts] = (globalThis.fetch as never as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(url).toBe("/api/rounds");
     expect(JSON.parse((opts as RequestInit).body as string)).toEqual({ course_id: 3 });
+    expectAllRoundStatsInvalidated(qc);
+  });
+});
+
+describe("round scoring mutations", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("invalidates every round-stats cache after updating a round", async () => {
+    const qc = new QueryClient();
+    seedRoundStats(qc);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200,
+      json: () => Promise.resolve({ id: 5, status: "completed" }),
+    }) as never;
+    const { result } = renderHook(() => useUpdateRound(5), { wrapper: wrapperFor(qc) });
+
+    result.current.mutate({ status: "completed" });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expectAllRoundStatsInvalidated(qc);
+  });
+
+  it("invalidates every round-stats cache after updating a hole", async () => {
+    const qc = new QueryClient();
+    seedRoundStats(qc);
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200,
+      json: () => Promise.resolve({ id: 5 }),
+    }) as never;
+    const { result } = renderHook(() => useUpdateRoundHole(5), { wrapper: wrapperFor(qc) });
+
+    result.current.mutate({ number: 1, strokes: 4 });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expectAllRoundStatsInvalidated(qc);
   });
 });
 

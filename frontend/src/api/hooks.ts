@@ -169,6 +169,7 @@ export function useCreateRound() {
     mutationFn: (body: RoundCreate) => apiSend<Round>("POST", "/rounds", body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.rounds });
+      qc.invalidateQueries({ queryKey: ["roundStats"] });
       qc.invalidateQueries({ queryKey: keys.handicap });
       qc.invalidateQueries({ queryKey: keys.roundTrends });
     },
@@ -181,6 +182,7 @@ export function useUpdateRound(id: number) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.round(id) });
       qc.invalidateQueries({ queryKey: keys.rounds });
+      qc.invalidateQueries({ queryKey: ["roundStats"] });
       qc.invalidateQueries({ queryKey: keys.handicap });
       qc.invalidateQueries({ queryKey: keys.roundTrends });
     },
@@ -201,7 +203,7 @@ export function useUpdateRoundHole(id: number) {
     }) => apiSend<Round>("PATCH", `/rounds/${id}/holes/${number}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.round(id) });
-      qc.invalidateQueries({ queryKey: keys.roundStats(id) });
+      qc.invalidateQueries({ queryKey: ["roundStats"] });
       qc.invalidateQueries({ queryKey: keys.handicap });
       qc.invalidateQueries({ queryKey: keys.roundTrends });
     },
