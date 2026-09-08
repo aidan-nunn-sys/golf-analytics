@@ -13,6 +13,7 @@ class HoleOut(BaseModel):
     green_lat: float | None
     green_lng: float | None
     hazards: list[dict] | None
+    stroke_index: int | None = None
 
 
 class HoleCreate(BaseModel):

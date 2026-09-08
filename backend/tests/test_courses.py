@@ -158,3 +158,43 @@ def test_course_is_visible_to_a_different_user(client, auth_headers, db_session)
     resp = client.get(f"/api/courses/{created['id']}", headers=second_headers)
     assert resp.status_code == 200
     assert resp.json()["id"] == created["id"]
+
+
+def test_hole_out_includes_stroke_index(client, auth_headers):
+    created = client.post(
+        "/api/courses",
+        json={"name": "SI Links", "holes": [{"number": 1, "par": 4}, {"number": 2, "par": 3}]},
+        headers=auth_headers,
+    ).json()
+    assert created["holes"][0]["stroke_index"] is None
+
+    put = client.put(
+        f"/api/courses/{created['id']}/stroke-index",
+        json={"stroke_indexes": [2, 1]},
+        headers=auth_headers,
+    )
+    assert put.status_code == 200
+
+    fetched = client.get(f"/api/courses/{created['id']}", headers=auth_headers).json()
+    assert [h["stroke_index"] for h in fetched["holes"]] == [2, 1]
+
+
+def test_course_library_lists_imported_courses(client, auth_headers):
+    empty = client.get("/api/courses/library", headers=auth_headers)
+    assert empty.status_code == 200
+    assert empty.json() == []
+
+    client.post(
+        "/api/courses",
+        json={"name": "Backyard Links", "holes": [{"number": 1, "par": 3}]},
+        headers=auth_headers,
+    )
+    listed = client.get("/api/courses/library", headers=auth_headers)
+    assert listed.status_code == 200
+    names = [c["name"] for c in listed.json()]
+    assert "Backyard Links" in names
+    assert "holes" in listed.json()[0]
+
+
+def test_course_library_requires_auth(client):
+    assert client.get("/api/courses/library").status_code == 401

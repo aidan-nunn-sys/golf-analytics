@@ -90,6 +90,15 @@ def import_course(
     return _course_out(db, course)
 
 
+@router.get("/library", response_model=list[CourseOut])
+def list_library(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> list[CourseOut]:
+    courses = db.scalars(select(Course).order_by(Course.name)).all()
+    return [_course_out(db, c) for c in courses]
+
+
 @router.get("/{course_id}", response_model=CourseOut)
 def get_course(
     course_id: int,
