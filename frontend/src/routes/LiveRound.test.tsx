@@ -137,6 +137,24 @@ describe("LiveRound", () => {
     );
   });
 
+  it("marks the selected fairway button as pressed", async () => {
+    setup();
+    const user = userEvent.setup();
+    const hitButton = screen.getByRole("button", { name: "Fairway hit" });
+    const missButton = screen.getByRole("button", { name: "Fairway miss" });
+
+    expect(hitButton).toHaveAttribute("aria-pressed", "false");
+    expect(missButton).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(hitButton);
+    expect(hitButton).toHaveAttribute("aria-pressed", "true");
+    expect(missButton).toHaveAttribute("aria-pressed", "false");
+
+    await user.click(missButton);
+    expect(hitButton).toHaveAttribute("aria-pressed", "false");
+    expect(missButton).toHaveAttribute("aria-pressed", "true");
+  });
+
   it("hides the fairway control on a par 3", () => {
     setup(roundFixture({
       current_hole: 2,

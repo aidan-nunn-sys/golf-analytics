@@ -289,6 +289,7 @@ export function LiveRound() {
               <div className="flex gap-2">
                 <button
                   type="button"
+                  aria-pressed={fairway === true}
                   onClick={() => setFairway(true)}
                   className={`rounded border px-3 py-1.5 text-sm ${
                     fairway === true ? "bg-green-600 text-white" : ""
@@ -298,6 +299,7 @@ export function LiveRound() {
                 </button>
                 <button
                   type="button"
+                  aria-pressed={fairway === false}
                   onClick={() => setFairway(false)}
                   className={`rounded border px-3 py-1.5 text-sm ${
                     fairway === false ? "bg-green-600 text-white" : ""
