@@ -1,6 +1,26 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiSend } from "./client";
-import type { Club, Course, CourseSearchResult, Dashboard, GapRow, ManualHoleInput, Round, RoundStatus, Session, Shot, ClubStats, User } from "./types";
+import type {
+  Club,
+  ClubStats,
+  Course,
+  CourseSearchResult,
+  Dashboard,
+  GapRow,
+  Handicap,
+  ManualHoleInput,
+  RatingScope,
+  Round,
+  RoundCreate,
+  RoundStats,
+  RoundStatus,
+  RoundTrend,
+  Session,
+  Shot,
+  TeeRating,
+  TeeSet,
+  User,
+} from "./types";
 
 export const keys = {
   clubs: ["clubs"] as const,
@@ -12,8 +32,13 @@ export const keys = {
   me: ["me"] as const,
   courseSearch: (search: string) => ["courseSearch", search] as const,
   course: (id: number) => ["course", id] as const,
+  courseLibrary: ["courseLibrary"] as const,
   rounds: ["rounds"] as const,
   round: (id: number) => ["round", id] as const,
+  tees: (courseId: number) => ["tees", courseId] as const,
+  handicap: ["handicap"] as const,
+  roundStats: (id: number) => ["roundStats", id] as const,
+  roundTrends: ["roundTrends"] as const,
 };
 
 // Queries
@@ -41,6 +66,24 @@ export const useCourse = (id: number) =>
 export const useRounds = () => useQuery({ queryKey: keys.rounds, queryFn: () => apiGet<Round[]>("/rounds") });
 export const useRound = (id: number) =>
   useQuery({ queryKey: keys.round(id), queryFn: () => apiGet<Round>(`/rounds/${id}`) });
+export const useTees = (courseId: number) =>
+  useQuery({
+    queryKey: keys.tees(courseId),
+    queryFn: () => apiGet<TeeSet[]>(`/courses/${courseId}/tees`),
+    enabled: courseId > 0,
+  });
+export const useCourseLibrary = () =>
+  useQuery({ queryKey: keys.courseLibrary, queryFn: () => apiGet<Course[]>("/courses/library") });
+export const useHandicap = () =>
+  useQuery({ queryKey: keys.handicap, queryFn: () => apiGet<Handicap>("/stats/handicap") });
+export const useRoundStats = (id: number) =>
+  useQuery({
+    queryKey: keys.roundStats(id),
+    queryFn: () => apiGet<RoundStats>(`/rounds/${id}/stats`),
+    enabled: id > 0,
+  });
+export const useRoundTrends = () =>
+  useQuery({ queryKey: keys.roundTrends, queryFn: () => apiGet<RoundTrend>("/stats/rounds") });
 
 // Mutations — invalidate stats-bearing queries after any change that affects them.
 function useStatsInvalidation() {
@@ -123,8 +166,12 @@ export function useCreateManualCourse() {
 export function useCreateRound() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { course_id: number }) => apiSend<Round>("POST", "/rounds", body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.rounds }),
+    mutationFn: (body: RoundCreate) => apiSend<Round>("POST", "/rounds", body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.rounds });
+      qc.invalidateQueries({ queryKey: keys.handicap });
+      qc.invalidateQueries({ queryKey: keys.roundTrends });
+    },
   });
 }
 export function useUpdateRound(id: number) {
@@ -134,15 +181,83 @@ export function useUpdateRound(id: number) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.round(id) });
       qc.invalidateQueries({ queryKey: keys.rounds });
+      qc.invalidateQueries({ queryKey: keys.handicap });
+      qc.invalidateQueries({ queryKey: keys.roundTrends });
     },
   });
 }
 export function useUpdateRoundHole(id: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ number, strokes }: { number: number; strokes: number }) =>
-      apiSend<Round>("PATCH", `/rounds/${id}/holes/${number}`, { strokes }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.round(id) }),
+    mutationFn: ({
+      number,
+      ...body
+    }: {
+      number: number;
+      strokes?: number;
+      putts?: number | null;
+      fairway_hit?: boolean | null;
+      penalties?: number;
+    }) => apiSend<Round>("PATCH", `/rounds/${id}/holes/${number}`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.round(id) });
+      qc.invalidateQueries({ queryKey: keys.roundStats(id) });
+      qc.invalidateQueries({ queryKey: keys.handicap });
+      qc.invalidateQueries({ queryKey: keys.roundTrends });
+    },
+  });
+}
+export function useCreateTee() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      courseId,
+      name,
+      yardage,
+    }: {
+      courseId: number;
+      name: string;
+      yardage?: number | null;
+    }) => apiSend<TeeSet>("POST", `/courses/${courseId}/tees`, { name, yardage }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: keys.tees(vars.courseId) });
+      qc.invalidateQueries({ queryKey: keys.course(vars.courseId) });
+    },
+  });
+}
+export function useUpsertTeeRating() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      teeId,
+      scope,
+      body,
+    }: {
+      teeId: number;
+      scope: RatingScope;
+      courseId: number;
+      body: { course_rating: number; slope_rating: number; par: number };
+    }) => apiSend<TeeRating>("PUT", `/tees/${teeId}/ratings/${scope}`, body),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: keys.tees(vars.courseId) });
+      qc.invalidateQueries({ queryKey: keys.course(vars.courseId) });
+    },
+  });
+}
+export function useSetStrokeIndex() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      courseId,
+      stroke_indexes,
+    }: {
+      courseId: number;
+      stroke_indexes: number[];
+    }) => apiSend<number[]>("PUT", `/courses/${courseId}/stroke-index`, { stroke_indexes }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: keys.tees(vars.courseId) });
+      qc.invalidateQueries({ queryKey: keys.course(vars.courseId) });
+    },
   });
 }
 export function useLogRoundShot(id: number) {

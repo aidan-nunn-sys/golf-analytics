@@ -7,6 +7,7 @@ import { LiveRound } from "./LiveRound";
 import { useRound, useUpdateRound, useUpdateRoundHole, useCourse, useLogRoundShot, useClubs } from "../api/hooks";
 import { useAuth } from "../auth/AuthContext";
 import type { Round, Course, Club, User } from "../api/types";
+import { courseFixture, holeFixture, roundFixture, roundHoleFixture } from "../testFixtures";
 
 vi.mock("react-leaflet", () => ({
   MapContainer: ({ children }: { children?: ReactNode }) => <div data-testid="map">{children}</div>,
@@ -35,20 +36,18 @@ const mockedUseLogRoundShot = vi.mocked(useLogRoundShot);
 const mockedUseClubs = vi.mocked(useClubs);
 const mockedUseAuth = vi.mocked(useAuth);
 
-const round: Round = {
-  id: 5, course_id: 7, date: "2026-07-19", status: "in_progress", current_hole: 1,
+const round = roundFixture({
   holes: [
-    { hole_number: 1, par: 4, strokes: null },
-    { hole_number: 2, par: 3, strokes: null },
+    roundHoleFixture(),
+    roundHoleFixture({ hole_number: 2, par: 3 }),
   ],
-};
+});
 
-const osmCourse: Course = {
-  id: 7, name: "Pebble Beach", osm_id: "way/1", import_source: "osm",
-  location_lat: 36.5, location_lng: -121.9, imported_at: "",
-  holes: [{ id: 1, course_id: 7, number: 1, par: 4, green_lat: 36.51, green_lng: -121.91, hazards: null }],
-};
-const manualCourse: Course = { ...osmCourse, import_source: "manual" };
+const osmCourse = courseFixture({
+  imported_at: "",
+  holes: [holeFixture({ green_lat: 36.51, green_lng: -121.91 })],
+});
+const manualCourse = courseFixture({ ...osmCourse, import_source: "manual" });
 const clubs: Club[] = [{ id: 2, label: "7 Iron", category: "iron", order_index: 0, loft: null, brand_model: null, is_active: true }];
 
 const mockUser: User = {

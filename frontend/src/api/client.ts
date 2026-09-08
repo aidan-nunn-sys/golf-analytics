@@ -53,7 +53,7 @@ export async function apiGet<T>(path: string): Promise<T> {
 }
 
 export async function apiSend<T>(
-  method: "POST" | "PATCH" | "DELETE",
+  method: "POST" | "PATCH" | "PUT" | "DELETE",
   path: string,
   body?: unknown,
 ): Promise<T> {

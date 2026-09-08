@@ -4,18 +4,26 @@ import { MemoryRouter } from "react-router-dom";
 import { RoundHistory } from "./RoundHistory";
 import { useRounds, useCourse } from "../api/hooks";
 import type { Round, Course } from "../api/types";
+import { courseFixture, roundFixture } from "../testFixtures";
 
 vi.mock("../api/hooks", () => ({ useRounds: vi.fn(), useCourse: vi.fn() }));
 const mockedUseRounds = vi.mocked(useRounds);
 const mockedUseCourse = vi.mocked(useCourse);
 
 const rounds: Round[] = [
-  { id: 1, course_id: 7, date: "2026-07-10", status: "completed", current_hole: 18, holes: [] },
-  { id: 2, course_id: 7, date: "2026-07-19", status: "in_progress", current_hole: 3, holes: [] },
+  roundFixture({ id: 1, date: "2026-07-10", status: "completed", current_hole: 18 }),
+  roundFixture({ id: 2, current_hole: 3 }),
 ];
 
 function courseFor(id: number): Course {
-  return { id, name: "Pebble Beach", osm_id: null, import_source: "osm", location_lat: null, location_lng: null, imported_at: "", holes: [] };
+  return courseFixture({
+    id,
+    osm_id: null,
+    location_lat: null,
+    location_lng: null,
+    imported_at: "",
+    holes: [],
+  });
 }
 
 describe("RoundHistory", () => {

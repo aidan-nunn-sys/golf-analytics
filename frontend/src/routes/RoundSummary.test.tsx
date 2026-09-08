@@ -3,27 +3,38 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { RoundSummary } from "./RoundSummary";
 import { useRound, useCourse } from "../api/hooks";
-import type { Round, Course } from "../api/types";
+import type { Round } from "../api/types";
+import { courseFixture, roundFixture, roundHoleFixture } from "../testFixtures";
 
 vi.mock("../api/hooks", () => ({ useRound: vi.fn(), useCourse: vi.fn() }));
 const mockedUseRound = vi.mocked(useRound);
 const mockedUseCourse = vi.mocked(useCourse);
 
-const round: Round = {
-  id: 5, course_id: 7, date: "2026-07-19", status: "completed", current_hole: 2,
+const round = roundFixture({
+  status: "completed",
+  current_hole: 2,
   holes: [
-    { hole_number: 1, par: 4, strokes: 5 },
-    { hole_number: 2, par: 3, strokes: 3 },
+    roundHoleFixture({ strokes: 5 }),
+    roundHoleFixture({ hole_number: 2, par: 3, strokes: 3 }),
   ],
-};
-const evenParRound: Round = {
-  id: 6, course_id: 7, date: "2026-07-20", status: "completed", current_hole: 2,
+});
+const evenParRound = roundFixture({
+  id: 6,
+  date: "2026-07-20",
+  status: "completed",
+  current_hole: 2,
   holes: [
-    { hole_number: 1, par: 4, strokes: 4 },
-    { hole_number: 2, par: 3, strokes: 3 },
+    roundHoleFixture({ strokes: 4 }),
+    roundHoleFixture({ hole_number: 2, par: 3, strokes: 3 }),
   ],
-};
-const course: Course = { id: 7, name: "Pebble Beach", osm_id: null, import_source: "osm", location_lat: null, location_lng: null, imported_at: "", holes: [] };
+});
+const course = courseFixture({
+  osm_id: null,
+  location_lat: null,
+  location_lng: null,
+  imported_at: "",
+  holes: [],
+});
 
 function setup(overrides?: { round?: Round | undefined; roundIsLoading?: boolean; roundError?: unknown }) {
   mockedUseRound.mockReturnValue({

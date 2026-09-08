@@ -73,7 +73,9 @@ export interface DashboardClub {
 export interface Dashboard { clubs: DashboardClub[]; gapping: GapRow[]; }
 
 export type ImportSource = "osm" | "manual";
-export type RoundStatus = "in_progress" | "completed";
+export type RoundStatus = "in_progress" | "completed" | "abandoned";
+export type Nine = "front" | "back";
+export type RatingScope = "18" | "front9" | "back9";
 
 export interface Hole {
   id: number;
@@ -83,6 +85,7 @@ export interface Hole {
   green_lat: number | null;
   green_lng: number | null;
   hazards: Record<string, unknown>[] | null;
+  stroke_index: number | null;
 }
 
 export interface Course {
@@ -113,6 +116,17 @@ export interface RoundHole {
   hole_number: number;
   par: number;
   strokes: number | null;
+  putts: number | null;
+  fairway_hit: boolean | null;
+  penalties: number;
+}
+
+export interface RoundHoleInput {
+  number: number;
+  strokes?: number | null;
+  putts?: number | null;
+  fairway_hit?: boolean | null;
+  penalties?: number;
 }
 
 export interface Round {
@@ -121,5 +135,85 @@ export interface Round {
   date: string;
   status: RoundStatus;
   current_hole: number;
+  tee_set_id: number | null;
+  hole_count: number;
+  nine: Nine | null;
+  course_rating: number | null;
+  slope_rating: number | null;
+  course_par: number | null;
   holes: RoundHole[];
+}
+
+export interface RoundCreate {
+  course_id: number;
+  date?: string;
+  tee_set_id?: number | null;
+  hole_count?: 9 | 18;
+  nine?: Nine;
+  status?: RoundStatus;
+  holes?: RoundHoleInput[];
+}
+
+export interface TeeRating {
+  id: number;
+  scope: RatingScope;
+  course_rating: number;
+  slope_rating: number;
+  par: number;
+}
+
+export interface TeeSet {
+  id: number;
+  course_id: number;
+  name: string;
+  yardage: number | null;
+  ratings: TeeRating[];
+}
+
+export interface RoundStats {
+  score: number;
+  to_par: number;
+  fairways_hit: number;
+  fairways_possible: number;
+  fairway_pct: number | null;
+  gir: number;
+  gir_pct: number | null;
+  putts: number;
+  putts_per_gir: number | null;
+  one_putts: number;
+  three_putts: number;
+  scrambling_pct: number | null;
+  penalties: number;
+  differential: number | null;
+  counts_toward_index: boolean;
+  reason: string | null;
+}
+
+export interface DifferentialRow {
+  round_id: number;
+  date: string;
+  differential: number | null;
+  counts_toward_index: boolean;
+  reason: string | null;
+  is_counting: boolean;
+  index_after: number | null;
+}
+
+export interface Handicap {
+  index: number | null;
+  low_index: number | null;
+  cap_applied: "soft" | "hard" | null;
+  cap_adjustment: number | null;
+  rounds_needed: number;
+  differentials: DifferentialRow[];
+}
+
+export interface RoundTrend {
+  rounds: RoundStats[];
+  averages: {
+    score: number | null;
+    putts: number | null;
+    gir_pct: number | null;
+    fairway_pct: number | null;
+  };
 }
