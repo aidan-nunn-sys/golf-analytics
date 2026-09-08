@@ -1,14 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { RoundSummary } from "./RoundSummary";
-import { useRound, useCourse } from "../api/hooks";
-import type { Round } from "../api/types";
+import { useRound, useCourse, useRoundStats, useUpdateRoundHole } from "../api/hooks";
+import type { Round, RoundStats } from "../api/types";
 import { courseFixture, roundFixture, roundHoleFixture } from "../testFixtures";
 
-vi.mock("../api/hooks", () => ({ useRound: vi.fn(), useCourse: vi.fn() }));
+vi.mock("../api/hooks", () => ({
+  useRound: vi.fn(),
+  useCourse: vi.fn(),
+  useRoundStats: vi.fn(),
+  useUpdateRoundHole: vi.fn(),
+}));
 const mockedUseRound = vi.mocked(useRound);
 const mockedUseCourse = vi.mocked(useCourse);
+const mockedUseRoundStats = vi.mocked(useRoundStats);
+const mockedUseUpdateRoundHole = vi.mocked(useUpdateRoundHole);
 
 const round = roundFixture({
   status: "completed",
@@ -36,13 +44,44 @@ const course = courseFixture({
   holes: [],
 });
 
-function setup(overrides?: { round?: Round | undefined; roundIsLoading?: boolean; roundError?: unknown }) {
+const stats: RoundStats = {
+  score: 8,
+  to_par: 1,
+  fairways_hit: 0,
+  fairways_possible: 1,
+  fairway_pct: 0,
+  gir: 1,
+  gir_pct: 50,
+  putts: 3,
+  putts_per_gir: 2,
+  one_putts: 0,
+  three_putts: 0,
+  scrambling_pct: null,
+  penalties: 0,
+  differential: 1.2,
+  counts_toward_index: true,
+  reason: null,
+};
+
+function setup(overrides?: {
+  round?: Round | undefined;
+  roundIsLoading?: boolean;
+  roundError?: unknown;
+  stats?: RoundStats;
+}) {
+  const updateHole = { mutate: vi.fn() };
   mockedUseRound.mockReturnValue({
     data: overrides?.round ?? round,
     isLoading: overrides?.roundIsLoading ?? false,
     error: overrides?.roundError ?? null,
   } as unknown as ReturnType<typeof useRound>);
   mockedUseCourse.mockReturnValue({ data: course, isLoading: false, error: null } as unknown as ReturnType<typeof useCourse>);
+  mockedUseRoundStats.mockReturnValue({
+    data: overrides?.stats ?? stats,
+    isLoading: false,
+    error: null,
+  } as unknown as ReturnType<typeof useRoundStats>);
+  mockedUseUpdateRoundHole.mockReturnValue(updateHole as unknown as ReturnType<typeof useUpdateRoundHole>);
   render(
     <MemoryRouter initialEntries={["/rounds/5/summary"]}>
       <Routes>
@@ -50,12 +89,15 @@ function setup(overrides?: { round?: Round | undefined; roundIsLoading?: boolean
       </Routes>
     </MemoryRouter>,
   );
+  return { updateHole };
 }
 
 describe("RoundSummary", () => {
   beforeEach(() => {
     mockedUseRound.mockReset();
     mockedUseCourse.mockReset();
+    mockedUseRoundStats.mockReset();
+    mockedUseUpdateRoundHole.mockReset();
   });
 
   it("shows strokes per hole and the running total", () => {
@@ -67,15 +109,76 @@ describe("RoundSummary", () => {
   it("shows the result vs. par", () => {
     setup();
     // 8 strokes vs. 7 par = +1
-    expect(screen.getByText("+1")).toBeInTheDocument();
+    expect(within(screen.getByText("Total: 8").parentElement!).getByText("+1")).toBeInTheDocument();
+  });
+
+  it("shows derived round stats from the server", () => {
+    setup();
+    expect(screen.getByText("GIR")).toBeInTheDocument();
+    expect(screen.getByText("50%")).toBeInTheDocument();
+    expect(screen.getByText("Diff")).toBeInTheDocument();
+    expect(screen.getByText("1.2")).toBeInTheDocument();
+  });
+
+  it("shows the named reason when the round does not count toward the Index", () => {
+    setup({
+      stats: {
+        ...stats,
+        counts_toward_index: false,
+        differential: null,
+        reason: "9-hole rounds do not count toward the Index",
+      },
+    });
+    expect(screen.getByText("9-hole rounds do not count toward the Index")).toBeInTheDocument();
+  });
+
+  it("patches putts for a hole", async () => {
+    const { updateHole } = setup();
+    const user = userEvent.setup();
+    const putts = screen.getAllByLabelText("Putts")[0];
+    await user.clear(putts);
+    await user.type(putts, "2");
+    await user.tab();
+    expect(updateHole.mutate).toHaveBeenCalledWith(
+      { number: 1, putts: 2 },
+      expect.anything(),
+    );
+  });
+
+  it("patches only the selected fairway result and omits fairway controls on par 3s", async () => {
+    const { updateHole } = setup();
+    const user = userEvent.setup();
+    expect(screen.getAllByRole("button", { name: "Fairway hit" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Fairway miss" })).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: "Fairway hit" }));
+
+    expect(updateHole.mutate).toHaveBeenCalledWith(
+      { number: 1, fairway_hit: true },
+      expect.anything(),
+    );
+  });
+
+  it("patches penalties for a hole on blur", async () => {
+    const { updateHole } = setup();
+    const user = userEvent.setup();
+    const penalties = screen.getAllByLabelText("Penalties")[0];
+    await user.clear(penalties);
+    await user.type(penalties, "1");
+    await user.tab();
+
+    expect(updateHole.mutate).toHaveBeenCalledWith(
+      { number: 1, penalties: 1 },
+      expect.anything(),
+    );
   });
 
   it("renders a row for each hole with its par and strokes", () => {
     setup();
-    expect(screen.getByText("Hole 1 (Par 4)")).toBeInTheDocument();
-    expect(screen.getByText("5")).toBeInTheDocument();
-    expect(screen.getByText("Hole 2 (Par 3)")).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
+    const firstHole = screen.getByText("Hole 1 (Par 4)").closest("li")!;
+    const secondHole = screen.getByText("Hole 2 (Par 3)").closest("li")!;
+    expect(within(firstHole).getByText("5")).toBeInTheDocument();
+    expect(within(secondHole).getByText("3")).toBeInTheDocument();
   });
 
   it("shows E for an even-par round", () => {
