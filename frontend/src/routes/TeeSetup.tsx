@@ -117,7 +117,7 @@ export function TeeSetup() {
     if (course) {
       setStrokeIndexes(course.holes.map((hole) => (hole.stroke_index == null ? "" : String(hole.stroke_index))));
     }
-  }, [course]);
+  }, [course?.id]);
 
   useEffect(() => {
     if (!selectedTee) return;
@@ -132,7 +132,7 @@ export function TeeSetup() {
         : emptyRating();
     };
     setRatings({ "18": fieldsFor("18"), front9: fieldsFor("front9"), back9: fieldsFor("back9") });
-  }, [selectedTee]);
+  }, [selectedTee?.id]);
 
   const onMutationError = (error: unknown) =>
     setActionError(error instanceof Error ? error.message : "Something went wrong. Please try again.");
