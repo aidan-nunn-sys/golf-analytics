@@ -130,6 +130,7 @@ First run creates the admin from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 - **Course yardages are whole yards** (`TeeSet.yardage` is `Integer`) — published scorecard figures. `Shot.carry_yards` is `Float` because it's a measured distance. Both are yards; the units rule is about never storing meters.
 - **`alembic.ini` and `alembic/` must stay in the Docker image** — the app's lifespan runs migrations at startup and loads `/app/alembic.ini`.
 - **`localStorage` under test:** Node 22+ ships an experimental built-in `localStorage` global that is `undefined` without `--localstorage-file` and shadows jsdom's. `vitest.setup.ts` installs an in-memory `Storage` when it's missing and clears it between tests — don't remove it or every auth-touching test fails on modern Node.
+- **No vendor or agent attribution in git.** Commit messages, trailers, branch names, tags, and PR titles/bodies must not mention Cursor, Codex, Claude, Copilot, or any other agent/model, and must not include session links or agent IDs. If a hook appends a `Co-authored-by` trailer, strip it. Leave commit messages as the change only.
 
 ## API surface
 

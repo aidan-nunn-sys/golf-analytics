@@ -1,0 +1,30 @@
+---
+description: Never attribute git history, branches, or PRs to Cursor, Codex, Claude, or any other agent
+alwaysApply: true
+---
+
+# No vendor or agent attribution in git
+
+Git history, branches, tags, and pull requests must read as ordinary human work. Do not name Cursor, Codex, Claude, Copilot, ChatGPT, Grok, or any other agent, model, or tool.
+
+Never add:
+
+- `Co-authored-by`, `Signed-off-by`, `Made-with`, `Generated-by`, or similar trailers for an agent
+- Session links, agent IDs, or "made with" badges
+- Tool or model names in commit subjects or bodies
+- Agent names in branch names, tags, PR titles, or PR bodies
+
+If a hook, UI, or wrapper appends a trailer, strip it before the commit is created. Rewrite the message if one already landed and the commit has not been pushed.
+
+```
+# BAD
+Add tee and stroke-index setup
+
+Co-authored-by: Cursor <cursoragent@cursor.com>
+
+# BAD
+feat: handicap screen [claude]
+
+# GOOD
+Add tee and stroke-index setup
+```
