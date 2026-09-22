@@ -55,8 +55,12 @@ v1 web client: React/Vite SPA covering login, club bag, sessions, shot logging,
 stats dashboards, and on-course GPS rounds (course search/import, live GPS shot
 logging, scorecards) — served single-origin with the API via Docker.
 
-Roadmap: launch-monitor import; GPS-measured range shots; scores/handicap/round
-stats; learning profile.
+The dashboard also shows recent scoring trends with separate 9- and 18-hole
+comparisons, links to scorecards, and practice suggestions based on recorded
+three-putts and penalties. Comparisons use fully scored rounds from the latest
+20 finalized rounds; missing putt counts are called out explicitly.
+
+Roadmap: launch-monitor import; GPS-measured range shots; expanded learning profile.
 
 ## License
 

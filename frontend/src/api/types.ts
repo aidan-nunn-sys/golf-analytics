@@ -208,8 +208,16 @@ export interface Handicap {
   differentials: DifferentialRow[];
 }
 
+export interface RoundTrendEntry extends RoundStats {
+  round_id: number;
+  date: string;
+  hole_count: number;
+  holes_scored: number;
+  putts_recorded: number;
+}
+
 export interface RoundTrend {
-  rounds: RoundStats[];
+  rounds: RoundTrendEntry[];
   averages: {
     score: number | null;
     putts: number | null;

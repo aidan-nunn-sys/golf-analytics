@@ -167,6 +167,43 @@ def test_stats_rounds_trend(client, auth_headers, rated_course):
     body = client.get("/api/stats/rounds?limit=2", headers=auth_headers).json()
     assert len(body["rounds"]) == 2
     assert body["averages"]["putts"] == 36.0
+    latest = body["rounds"][0]
+    assert latest["date"] == "2026-09-03"
+    assert latest["round_id"] > 0
+    assert latest["hole_count"] == 18
+    assert latest["holes_scored"] == 18
+    assert latest["putts_recorded"] == 18
+
+
+def test_stats_rounds_trend_tracks_partial_data_and_stable_order(
+    client, auth_headers, rated_course
+):
+    course_id, tee_id = rated_course
+    ids = []
+    for hole_count in (18, 9):
+        response = client.post(
+            "/api/rounds",
+            headers=auth_headers,
+            json={
+                "course_id": course_id,
+                "tee_set_id": tee_id,
+                "date": "2026-09-22",
+                "hole_count": hole_count,
+                "nine": "front" if hole_count == 9 else None,
+                "status": "abandoned",
+                "holes": [
+                    {"number": 1, "strokes": 5, "putts": 2},
+                    {"number": 2, "strokes": 4},
+                ],
+            },
+        )
+        assert response.status_code == 201, response.text
+        ids.append(response.json()["id"])
+    rows = client.get("/api/stats/rounds", headers=auth_headers).json()["rounds"]
+    assert [row["round_id"] for row in rows] == ids[::-1]
+    assert [row["hole_count"] for row in rows] == [9, 18]
+    assert all(row["holes_scored"] == 2 for row in rows)
+    assert all(row["putts_recorded"] == 1 for row in rows)
 
 
 def test_stats_rounds_trend_is_per_user(client, auth_headers, rated_course):

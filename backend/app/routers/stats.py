@@ -12,6 +12,7 @@ from app.schemas.stats import (
     GapRow,
     HandicapOut,
     RoundStats,
+    RoundTrendEntry,
     RoundTrendOut,
 )
 from app.stats.engine import compute_club_stats, compute_gapping
@@ -218,11 +219,21 @@ def get_round_trend(
     rounds = (
         db.query(Round)
         .filter(Round.user_id == user.id, Round.status.in_(_SCORED_STATUSES))
-        .order_by(Round.date.desc())
+        .order_by(Round.date.desc(), Round.id.desc())
         .limit(limit)
         .all()
     )
-    stats = [_round_stats_for(r, results.get(r.id)) for r in rounds]
+    stats = [
+        RoundTrendEntry(
+            **_round_stats_for(r, results.get(r.id)).model_dump(),
+            round_id=r.id,
+            date=r.date,
+            hole_count=r.hole_count,
+            holes_scored=sum(h.strokes is not None for h in r.holes),
+            putts_recorded=sum(h.putts is not None for h in r.holes),
+        )
+        for r in rounds
+    ]
 
     def _mean(key: str) -> float | None:
         values = [getattr(s, key) for s in stats if getattr(s, key) is not None]

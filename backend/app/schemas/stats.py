@@ -82,6 +82,14 @@ class HandicapOut(BaseModel):
     differentials: list[DifferentialRow]
 
 
+class RoundTrendEntry(RoundStats):
+    round_id: int
+    date: date
+    hole_count: int
+    holes_scored: int
+    putts_recorded: int
+
+
 class RoundTrendOut(BaseModel):
-    rounds: list[RoundStats]
+    rounds: list[RoundTrendEntry]
     averages: dict[str, float | None]
