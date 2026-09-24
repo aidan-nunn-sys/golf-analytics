@@ -1,18 +1,27 @@
 import { Link } from "react-router-dom";
-import { useDashboard } from "../api/hooks";
+import { useDashboard, useHandicap } from "../api/hooks";
 import { useAuth } from "../auth/AuthContext";
 import { AsyncBoundary } from "../components/AsyncBoundary";
 import { yardsToDisplay, unitLabel } from "../units";
 import { ScoringTrends } from "../components/ScoringTrends";
+import { HandicapOverview } from "../components/HandicapOverview";
 
 export function Dashboard() {
   const { data, isLoading, error } = useDashboard();
+  const handicap = useHandicap();
   const { user } = useAuth();
   const unit = user?.unit_preference ?? "yards";
 
   return (
     <>
       <h1 className="mb-4 text-xl font-semibold">Dashboard</h1>
+
+      <section className="mb-8 space-y-3" aria-labelledby="handicap-title">
+        <h2 id="handicap-title" className="text-xl font-semibold"><Link to="/handicap" className="text-green-700 underline">Handicap Index</Link></h2>
+        <AsyncBoundary loading={handicap.isLoading} error={handicap.error}>
+          {handicap.data && <HandicapOverview data={handicap.data} />}
+        </AsyncBoundary>
+      </section>
       <ScoringTrends />
       <AsyncBoundary loading={isLoading} error={error}>
         <h2 className="mb-4 text-xl font-semibold">Stock yardages</h2>

@@ -16,6 +16,8 @@ import { TeeSetup } from "./routes/TeeSetup";
 import { RoundHistory } from "./routes/RoundHistory";
 import { LiveRound } from "./routes/LiveRound";
 import { RoundSummary } from "./routes/RoundSummary";
+import { RoundEntry } from "./routes/RoundEntry";
+import { Handicap } from "./routes/Handicap";
 
 export default function App() {
   return (
@@ -38,6 +40,8 @@ export default function App() {
         <Route path="clubs/:id" element={<ClubDetail />} />
         <Route path="gapping" element={<Gapping />} />
         <Route path="rounds" element={<RoundHistory />} />
+        <Route path="rounds/new" element={<RoundEntry />} />
+        <Route path="handicap" element={<Handicap />} />
         <Route path="rounds/:id" element={<LiveRound />} />
         <Route path="rounds/:id/summary" element={<RoundSummary />} />
         <Route path="sessions" element={<SessionHistory />} />

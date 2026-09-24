@@ -1,3 +1,6 @@
+import contextlib
+
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -5,11 +8,34 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.deps import get_current_user
-from app.integrations import overpass
+from app.integrations import nominatim, overpass
 from app.models import Course, Hole, User
 from app.schemas.course import CourseCreate, CourseOut, CourseSearchResult, HoleOut
 
 router = APIRouter(prefix="/courses", tags=["courses"])
+
+
+@contextlib.contextmanager
+def _upstream():
+    """Turn OSM service failures into a status the UI can show.
+
+    Overpass and Nominatim are public, rate-limited, best-effort services; a
+    timeout or a 429 from them is not a bug in this app and must not surface
+    as an opaque 500.
+    """
+    timed_out = "The map service took too long to respond. Try again in a moment."
+    unavailable = "The map service is unavailable right now. Try again in a moment."
+    try:
+        yield
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status.HTTP_504_GATEWAY_TIMEOUT, timed_out) from exc
+    except httpx.HTTPStatusError as exc:
+        # Overpass answers with its own 502/504 when a query outruns its budget.
+        if exc.response.status_code in (502, 504):
+            raise HTTPException(status.HTTP_504_GATEWAY_TIMEOUT, timed_out) from exc
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, unavailable) from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, unavailable) from exc
 
 
 def _course_out(db: Session, course: Course) -> CourseOut:
@@ -37,10 +63,18 @@ def search_courses(
     max_lng: float | None = None,
     user: User = Depends(get_current_user),
 ) -> list[CourseSearchResult]:
-    bbox = None
     if None not in (min_lat, min_lng, max_lat, max_lng):
         bbox = (min_lat, min_lng, max_lat, max_lng)
-    results = overpass.search_courses(search, settings.overpass_base_url, bbox=bbox)
+    else:
+        # An unbounded name query makes Overpass scan every golf course on
+        # Earth and time out, so geocode the term to bound it first.
+        with _upstream():
+            bbox = nominatim.geocode(search, settings.nominatim_base_url)
+        if bbox is None:
+            return []
+
+    with _upstream():
+        results = overpass.search_courses(search, settings.overpass_base_url, bbox=bbox)
     return [CourseSearchResult(**r) for r in results]
 
 
@@ -67,7 +101,10 @@ def import_course(
         db.add(course)
         db.flush()  # obtain course.id without committing
 
-        holes_data = overpass.fetch_course_holes(payload.osm_id, settings.overpass_base_url)
+        with _upstream():
+            holes_data = overpass.fetch_course_holes(
+                payload.osm_id, settings.overpass_base_url
+            )
         for h in holes_data:
             db.add(Hole(course_id=course.id, **h))
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { RoundSummary } from "./RoundSummary";
@@ -171,6 +171,58 @@ describe("RoundSummary", () => {
       { number: 1, penalties: 1 },
       expect.anything(),
     );
+  });
+
+  it("shows and dismisses a hole-update error", async () => {
+    const { updateHole } = setup();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Fairway hit" }));
+    const options = updateHole.mutate.mock.calls[0][1] as { onError: (error: unknown) => void };
+
+    act(() => options.onError(new Error("Could not update hole")));
+
+    expect(screen.getByText("Could not update hole")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Dismiss error" }));
+    expect(screen.queryByText("Could not update hole")).not.toBeInTheDocument();
+  });
+
+  it("rejects invalid putts without patching the hole", () => {
+    const { updateHole } = setup();
+    const putts = screen.getAllByLabelText("Putts")[0];
+
+    fireEvent.change(putts, { target: { value: "1.5" } });
+    fireEvent.blur(putts);
+
+    expect(screen.getByText("Enter a valid number of putts.")).toBeInTheDocument();
+    expect(updateHole.mutate).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid penalties without patching the hole", () => {
+    const { updateHole } = setup();
+    const penalties = screen.getAllByLabelText("Penalties")[0];
+
+    fireEvent.change(penalties, { target: { value: "-1" } });
+    fireEvent.blur(penalties);
+
+    expect(screen.getByText("Enter a valid number of penalties.")).toBeInTheDocument();
+    expect(updateHole.mutate).not.toHaveBeenCalled();
+  });
+
+  it("does not patch unchanged hole details", async () => {
+    const unchangedRound = roundFixture({
+      holes: [
+        roundHoleFixture({ putts: 2, fairway_hit: true, penalties: 1, strokes: 5 }),
+        roundHoleFixture({ hole_number: 2, par: 3, strokes: 3 }),
+      ],
+    });
+    const { updateHole } = setup({ round: unchangedRound });
+    const user = userEvent.setup();
+
+    fireEvent.blur(screen.getAllByLabelText("Putts")[0]);
+    fireEvent.blur(screen.getAllByLabelText("Penalties")[0]);
+    await user.click(screen.getByRole("button", { name: "Fairway hit" }));
+
+    expect(updateHole.mutate).not.toHaveBeenCalled();
   });
 
   it("renders a row for each hole with its par and strokes", () => {

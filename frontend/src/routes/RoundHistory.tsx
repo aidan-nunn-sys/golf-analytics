@@ -45,6 +45,7 @@ function RoundCard({ round }: { round: Round }) {
         </div>
         <div className="text-right">
           {round.status === "in_progress" && <p className="text-sm font-medium text-green-600 dark:text-green-400">In progress</p>}
+          {round.status === "abandoned" && <p className="text-sm text-gray-600">Abandoned</p>}
           <p className="text-sm text-gray-600 dark:text-gray-400">Hole {round.current_hole}</p>
         </div>
       </div>
@@ -70,6 +71,7 @@ export function RoundHistory() {
       <Link to="/courses" className="inline-block text-blue-600 hover:underline">
         Start a round
       </Link>
+      <Link to="/rounds/new" className="ml-4 inline-block text-blue-600 hover:underline">Enter a past round</Link>
     </div>
   );
 }

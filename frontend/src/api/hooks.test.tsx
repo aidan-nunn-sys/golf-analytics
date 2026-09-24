@@ -15,6 +15,8 @@ import {
   useSetStrokeIndex,
   useCourseLibrary,
   useHandicap,
+  useImportCourse,
+  useCreateManualCourse,
   useRoundStats,
   useRoundTrends,
   keys,
@@ -52,6 +54,18 @@ describe("useClubs", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.[0].label).toBe("Driver");
     expect((globalThis.fetch as never as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBe("/api/clubs");
+  });
+});
+
+describe("course library updates", () => {
+  it.each(["import", "manual"])("refreshes the course picker after %s creation", async (kind) => {
+    const qc = new QueryClient();
+    qc.setQueryData(keys.courseLibrary, []);
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 201, json: async () => ({ id: 7 }) });
+    const { result } = renderHook(() => ({ imported: useImportCourse(), manual: useCreateManualCourse() }), { wrapper: wrapperFor(qc) });
+    if (kind === "import") result.current.imported.mutate({ name: "Links", osm_id: "way/1", location_lat: null, location_lng: null });
+    else result.current.manual.mutate({ name: "Links", holes: [{ number: 1, par: 4 }] });
+    await waitFor(() => expect(qc.getQueryState(keys.courseLibrary)?.isInvalidated).toBe(true));
   });
 });
 

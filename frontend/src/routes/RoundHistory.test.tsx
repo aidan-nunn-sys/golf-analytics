@@ -27,6 +27,13 @@ function courseFor(id: number): Course {
 }
 
 describe("RoundHistory", () => {
+  it("links to past-round entry and labels abandoned rounds", () => {
+    mockedUseRounds.mockReturnValue({ data: [roundFixture({ id: 3, status: "abandoned" })], isLoading: false, error: null } as ReturnType<typeof useRounds>);
+    mockedUseCourse.mockReturnValue({ data: courseFor(7), isLoading: false, error: null } as ReturnType<typeof useCourse>);
+    render(<RoundHistory />, { wrapper: MemoryRouter });
+    expect(screen.getByRole("link", { name: "Enter a past round" })).toHaveAttribute("href", "/rounds/new");
+    expect(screen.getByText("Abandoned").closest("a")).toHaveAttribute("href", "/rounds/3/summary");
+  });
   beforeEach(() => {
     mockedUseRounds.mockReset();
     mockedUseCourse.mockReset();

@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useRound, useCourse, useRoundStats, useUpdateRoundHole } from "../api/hooks";
+import type { RoundHole } from "../api/types";
 import { AsyncBoundary } from "../components/AsyncBoundary";
 import { StatCard } from "../components/StatCard";
 
@@ -14,11 +16,44 @@ export function RoundSummary() {
   const { data: course } = useCourse(round?.course_id ?? -1);
   const { data: stats } = useRoundStats(roundId);
   const updateHole = useUpdateRoundHole(roundId);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const totalStrokes = round?.holes.reduce((sum, h) => sum + (h.strokes ?? 0), 0) ?? 0;
   const totalPar = round?.holes.reduce((sum, h) => sum + h.par, 0) ?? 0;
   const vsPar = totalStrokes - totalPar;
   const vsParLabel = formatToPar(vsPar);
+  const mutationOptions = {
+    onError: (err: unknown) =>
+      setActionError(err instanceof Error ? err.message : "Something went wrong. Please try again."),
+  };
+
+  const savePutts = (hole: RoundHole, rawValue: string) => {
+    setActionError(null);
+    const putts = rawValue === "" ? null : Number(rawValue);
+    if (putts !== null && (!Number.isInteger(putts) || putts < 0)) {
+      setActionError("Enter a valid number of putts.");
+      return;
+    }
+    if (putts === hole.putts) return;
+    updateHole.mutate({ number: hole.hole_number, putts }, mutationOptions);
+  };
+
+  const savePenalties = (hole: RoundHole, rawValue: string) => {
+    setActionError(null);
+    const penalties = Number(rawValue);
+    if (rawValue !== "" && (!Number.isInteger(penalties) || penalties < 0)) {
+      setActionError("Enter a valid number of penalties.");
+      return;
+    }
+    if (penalties === hole.penalties) return;
+    updateHole.mutate({ number: hole.hole_number, penalties }, mutationOptions);
+  };
+
+  const saveFairway = (hole: RoundHole, fairwayHit: boolean) => {
+    if (fairwayHit === hole.fairway_hit) return;
+    setActionError(null);
+    updateHole.mutate({ number: hole.hole_number, fairway_hit: fairwayHit }, mutationOptions);
+  };
 
   return (
     <AsyncBoundary loading={isLoading} error={error} isEmpty={!round}>
@@ -26,6 +61,14 @@ export function RoundSummary() {
         <div className="space-y-4">
           <h1 className="text-lg font-semibold">{course?.name ?? "Round"}</h1>
           <div className="text-sm text-gray-500">{round.date}</div>
+          {actionError && (
+            <div className="flex items-center justify-between rounded border border-red-300 bg-red-50 p-2 text-sm text-red-700">
+              <span>{actionError}</span>
+              <button type="button" aria-label="Dismiss error" onClick={() => setActionError(null)}>
+                ×
+              </button>
+            </div>
+          )}
           <ul className="space-y-1">
             {round.holes.map((h) => (
               <li key={h.hole_number} className="rounded border bg-white p-2 text-sm">
@@ -41,15 +84,7 @@ export function RoundSummary() {
                       className="mt-1 block w-16 rounded border px-2 py-1 text-sm text-gray-900"
                       defaultValue={h.putts ?? ""}
                       min={0}
-                      onBlur={(event) =>
-                        updateHole.mutate(
-                          {
-                            number: h.hole_number,
-                            putts: event.currentTarget.value === "" ? null : Number(event.currentTarget.value),
-                          },
-                          {},
-                        )
-                      }
+                      onBlur={(event) => savePutts(h, event.currentTarget.value)}
                       type="number"
                     />
                   </label>
@@ -60,9 +95,7 @@ export function RoundSummary() {
                         className={`rounded border px-2 py-1 ${
                           h.fairway_hit === true ? "bg-green-700 text-white" : "bg-white"
                         }`}
-                        onClick={() =>
-                          updateHole.mutate({ number: h.hole_number, fairway_hit: true }, {})
-                        }
+                        onClick={() => saveFairway(h, true)}
                         type="button"
                       >
                         Fairway hit
@@ -72,9 +105,7 @@ export function RoundSummary() {
                         className={`rounded border px-2 py-1 ${
                           h.fairway_hit === false ? "bg-red-700 text-white" : "bg-white"
                         }`}
-                        onClick={() =>
-                          updateHole.mutate({ number: h.hole_number, fairway_hit: false }, {})
-                        }
+                        onClick={() => saveFairway(h, false)}
                         type="button"
                       >
                         Fairway miss
@@ -88,12 +119,7 @@ export function RoundSummary() {
                       className="mt-1 block w-16 rounded border px-2 py-1 text-sm text-gray-900"
                       defaultValue={h.penalties}
                       min={0}
-                      onBlur={(event) =>
-                        updateHole.mutate(
-                          { number: h.hole_number, penalties: Number(event.currentTarget.value) },
-                          {},
-                        )
-                      }
+                      onBlur={(event) => savePenalties(h, event.currentTarget.value)}
                       type="number"
                     />
                   </label>

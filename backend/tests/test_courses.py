@@ -2,6 +2,8 @@
 
 from unittest.mock import patch
 
+import httpx
+
 import pytest
 
 from app.models import Course, Hole
@@ -49,6 +51,8 @@ def test_course_and_hole_round_trip(db_session):
 
 def test_search_courses_proxies_overpass(client, auth_headers):
     with patch(
+        "app.routers.courses.nominatim.geocode", return_value=(1.0, 2.0, 3.0, 4.0)
+    ), patch(
         "app.routers.courses.overpass.search_courses",
         return_value=[
             {"osm_id": "way/1", "name": "Test Links", "location_lat": 1.0, "location_lng": 2.0, "hole_count": 18}
@@ -198,3 +202,118 @@ def test_course_library_lists_imported_courses(client, auth_headers):
 
 def test_course_library_requires_auth(client):
     assert client.get("/api/courses/library").status_code == 401
+
+
+def test_search_geocodes_the_term_when_no_bbox_is_given(client, auth_headers):
+    """An unbounded Overpass name query times out, so derive a bbox from the search term."""
+    with patch(
+        "app.routers.courses.nominatim.geocode",
+        return_value=(35.754, -78.684, 35.762, -78.674),
+    ) as mock_geocode, patch(
+        "app.routers.courses.overpass.search_courses", return_value=[]
+    ) as mock_search:
+        resp = client.get("/api/courses?search=Lonnie+Poole", headers=auth_headers)
+
+    assert resp.status_code == 200
+    mock_geocode.assert_called_once()
+    assert mock_geocode.call_args.args[0] == "Lonnie Poole"
+    assert mock_search.call_args.kwargs["bbox"] == (35.754, -78.684, 35.762, -78.674)
+
+
+def test_search_prefers_an_explicit_bbox_over_geocoding(client, auth_headers):
+    with patch("app.routers.courses.nominatim.geocode") as mock_geocode, patch(
+        "app.routers.courses.overpass.search_courses", return_value=[]
+    ) as mock_search:
+        client.get(
+            "/api/courses?search=Test&min_lat=1&min_lng=2&max_lat=3&max_lng=4",
+            headers=auth_headers,
+        )
+
+    mock_geocode.assert_not_called()
+    assert mock_search.call_args.kwargs["bbox"] == (1.0, 2.0, 3.0, 4.0)
+
+
+def test_search_returns_no_results_when_the_term_cannot_be_located(client, auth_headers):
+    with patch("app.routers.courses.nominatim.geocode", return_value=None), patch(
+        "app.routers.courses.overpass.search_courses"
+    ) as mock_search:
+        resp = client.get("/api/courses?search=asdfqwer", headers=auth_headers)
+
+    assert resp.status_code == 200
+    assert resp.json() == []
+    mock_search.assert_not_called()
+
+
+def test_search_reports_a_gateway_timeout_when_overpass_times_out(client, auth_headers):
+    with patch(
+        "app.routers.courses.nominatim.geocode", return_value=(1.0, 2.0, 3.0, 4.0)
+    ), patch(
+        "app.routers.courses.overpass.search_courses",
+        side_effect=httpx.ReadTimeout("timed out"),
+    ):
+        resp = client.get("/api/courses?search=Test", headers=auth_headers)
+
+    assert resp.status_code == 504
+    assert "map service" in resp.json()["detail"].lower()
+
+
+def test_search_reports_unavailable_when_overpass_rate_limits(client, auth_headers):
+    too_many = httpx.HTTPStatusError(
+        "429",
+        request=httpx.Request("POST", "http://fake"),
+        response=httpx.Response(429),
+    )
+    with patch(
+        "app.routers.courses.nominatim.geocode", return_value=(1.0, 2.0, 3.0, 4.0)
+    ), patch(
+        "app.routers.courses.overpass.search_courses", side_effect=too_many
+    ):
+        resp = client.get("/api/courses?search=Test", headers=auth_headers)
+
+    assert resp.status_code == 503
+    assert "map service" in resp.json()["detail"].lower()
+
+
+def test_search_reports_unavailable_when_geocoding_fails(client, auth_headers):
+    with patch(
+        "app.routers.courses.nominatim.geocode",
+        side_effect=httpx.ConnectError("no route to host"),
+    ):
+        resp = client.get("/api/courses?search=Test", headers=auth_headers)
+
+    assert resp.status_code == 503
+
+
+def test_import_reports_unavailable_when_hole_fetch_fails_upstream(client, auth_headers):
+    with patch(
+        "app.routers.courses.overpass.fetch_course_holes",
+        side_effect=httpx.ReadTimeout("timed out"),
+    ):
+        resp = client.post(
+            "/api/courses",
+            json={"name": "Slow Links", "osm_id": "way/1234"},
+            headers=auth_headers,
+        )
+
+    assert resp.status_code == 504
+
+
+@pytest.mark.parametrize(
+    "upstream_status,expected",
+    [(502, 504), (504, 504), (429, 503), (500, 503)],
+)
+def test_search_maps_upstream_status_to_a_meaningful_one(
+    client, auth_headers, upstream_status, expected
+):
+    """Overpass's own 502/504 means it timed out; 429 and the rest mean try later."""
+    error = httpx.HTTPStatusError(
+        str(upstream_status),
+        request=httpx.Request("POST", "http://fake"),
+        response=httpx.Response(upstream_status),
+    )
+    with patch(
+        "app.routers.courses.nominatim.geocode", return_value=(1.0, 2.0, 3.0, 4.0)
+    ), patch("app.routers.courses.overpass.search_courses", side_effect=error):
+        resp = client.get("/api/courses?search=Test", headers=auth_headers)
+
+    assert resp.status_code == expected

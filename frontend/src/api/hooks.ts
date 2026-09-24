@@ -153,14 +153,18 @@ export function useUpdateMe() {
   });
 }
 export function useImportCourse() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: { name: string; osm_id: string; location_lat: number | null; location_lng: number | null }) =>
       apiSend<Course>("POST", "/courses", body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.courseLibrary }),
   });
 }
 export function useCreateManualCourse() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: { name: string; holes: ManualHoleInput[] }) => apiSend<Course>("POST", "/courses", body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.courseLibrary }),
   });
 }
 export function useCreateRound() {

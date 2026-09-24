@@ -28,7 +28,7 @@ Document the journey to a working application as we go — the repo should alway
 
 1. **Club & shot analysis** (range engine) — *v1, the foundation.* ✅ Built (backend + frontend).
 2. **On-course GPS + OpenStreetMap course management** — ✅ Built (backend + frontend).
-3. **Score / stats / handicap logging** — ✅ Backend built (Plan 3a). Tee ratings, per-hole stat detail, backlog rounds, WHS Handicap Index. Frontend (Plan 3b) is the next slice.
+3. **Score / stats / handicap logging** — Backend and frontend implemented. Tee ratings, per-hole stat detail, past-round entry, personal Handicap Index, and dashboard integration.
 4. Learning profile + recommendations (north star: strokes gained) — later.
 
 Each later pillar gets its own spec → plan → build cycle. Don't pull future-pillar work into the current slice.
@@ -142,7 +142,7 @@ All routes are served under `/api`.
 
 **Range sessions** — `GET|POST /sessions` · `GET|PATCH|DELETE /sessions/{id}` · `POST|GET /sessions/{id}/shots` · `PATCH|DELETE /shots/{id}`
 
-**Courses** — `GET /courses` (OSM search, optional `bbox`) · `POST /courses` (import/manual) · `GET /courses/{id}`
+**Courses** — `GET /courses/library` (imported/manual course library) · `GET /courses` (OSM search, optional `bbox`) · `POST /courses` (import/manual) · `GET /courses/{id}`
 
 **Rounds** — `POST|GET /rounds` · `GET|PATCH /rounds/{id}` · `PATCH /rounds/{id}/holes/{number}` (strokes) · `POST /rounds/{id}/shots` (GPS-measured)
 
@@ -152,10 +152,16 @@ All routes are served under `/api`.
 
 ## Status
 
-Pillars 1 and 2 complete (backend + frontend). Pillar 3 **backend** complete (including the whole-branch review fix wave — see the Pillar 3 spec's 2026-09-04 decision log entries); its frontend is not built.
+Pillars 1–3 have backend and frontend implementations. Pillar 3 now includes
+past-round entry, Handicap history, and dashboard/navigation integration.
+The September 22 scoring trends and practice priorities remain in place.
 
-- Backend: **180 tests** green; 5 Alembic migrations apply to a fresh DB and round-trip to base.
-- Frontend: **97 tests** green (Vitest + RTL); `tsc -b --noEmit` clean.
-- Docker image builds, migrates on startup, and serves `/api/health`, `/api/docs` and the SPA.
+Verified 2026-09-24:
+- Frontend: **158 tests** pass; production build including TypeScript passes.
+- Lint exits successfully with four existing warnings in AuthContext and TeeSetup.
+- Full backend suite passes outside the sandbox (sandboxed TestClient stalled).
+- Existing course-search geocoding/timeouts and scorecard validation changes are preserved and tested.
+- Live browser/Docker smoke was not performed in this pass. Plan 3b records that remaining verification explicitly.
 
-**Next:** Plan 3b — Pillar 3 frontend (tee/rating setup, scorecard stat entry, fast backlog entry, handicap screen).
+**Next:** live smoke of backlog → scorecard → Handicap, then select a new slice
+(per-course trends, launch-monitor import, or expanded learning profile).

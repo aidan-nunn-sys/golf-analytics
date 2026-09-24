@@ -60,6 +60,15 @@ comparisons, links to scorecards, and practice suggestions based on recorded
 three-putts and penalties. Comparisons use fully scored rounds from the latest
 20 finalized rounds; missing putt counts are called out explicitly.
 
+Past rounds can be entered from Rounds → Enter a past round, with a date, course,
+optional tee, and 9/18-hole score grid. Optional putts, fairways, and penalties
+feed round statistics. Handicap shows the personal, unofficial Index, counting
+scores, exclusions, caps, and history; the dashboard links to it.
+
+Verification (2026-09-24): 158 frontend tests and the full backend suite pass;
+production build passes. Lint has four existing warnings. Live browser/Docker
+smoke is still pending for the new screens.
+
 Roadmap: launch-monitor import; GPS-measured range shots; expanded learning profile.
 
 ## License
