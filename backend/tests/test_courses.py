@@ -51,7 +51,7 @@ def test_course_and_hole_round_trip(db_session):
 
 def test_search_courses_proxies_overpass(client, auth_headers):
     with patch(
-        "app.routers.courses.nominatim.geocode", return_value=(1.0, 2.0, 3.0, 4.0)
+        "app.routers.courses.nominatim.resolve", return_value=([], (1.0, 2.0, 3.0, 4.0))
     ), patch(
         "app.routers.courses.overpass.search_courses",
         return_value=[
@@ -207,8 +207,8 @@ def test_course_library_requires_auth(client):
 def test_search_geocodes_the_term_when_no_bbox_is_given(client, auth_headers):
     """An unbounded Overpass name query times out, so derive a bbox from the search term."""
     with patch(
-        "app.routers.courses.nominatim.geocode",
-        return_value=(35.754, -78.684, 35.762, -78.674),
+        "app.routers.courses.nominatim.resolve",
+        return_value=([], (35.754, -78.684, 35.762, -78.674)),
     ) as mock_geocode, patch(
         "app.routers.courses.overpass.search_courses", return_value=[]
     ) as mock_search:
@@ -221,7 +221,7 @@ def test_search_geocodes_the_term_when_no_bbox_is_given(client, auth_headers):
 
 
 def test_search_prefers_an_explicit_bbox_over_geocoding(client, auth_headers):
-    with patch("app.routers.courses.nominatim.geocode") as mock_geocode, patch(
+    with patch("app.routers.courses.nominatim.resolve") as mock_geocode, patch(
         "app.routers.courses.overpass.search_courses", return_value=[]
     ) as mock_search:
         client.get(
@@ -234,7 +234,7 @@ def test_search_prefers_an_explicit_bbox_over_geocoding(client, auth_headers):
 
 
 def test_search_returns_no_results_when_the_term_cannot_be_located(client, auth_headers):
-    with patch("app.routers.courses.nominatim.geocode", return_value=None), patch(
+    with patch("app.routers.courses.nominatim.resolve", return_value=([], None)), patch(
         "app.routers.courses.overpass.search_courses"
     ) as mock_search:
         resp = client.get("/api/courses?search=asdfqwer", headers=auth_headers)
@@ -246,7 +246,7 @@ def test_search_returns_no_results_when_the_term_cannot_be_located(client, auth_
 
 def test_search_reports_a_gateway_timeout_when_overpass_times_out(client, auth_headers):
     with patch(
-        "app.routers.courses.nominatim.geocode", return_value=(1.0, 2.0, 3.0, 4.0)
+        "app.routers.courses.nominatim.resolve", return_value=([], (1.0, 2.0, 3.0, 4.0))
     ), patch(
         "app.routers.courses.overpass.search_courses",
         side_effect=httpx.ReadTimeout("timed out"),
@@ -264,7 +264,7 @@ def test_search_reports_unavailable_when_overpass_rate_limits(client, auth_heade
         response=httpx.Response(429),
     )
     with patch(
-        "app.routers.courses.nominatim.geocode", return_value=(1.0, 2.0, 3.0, 4.0)
+        "app.routers.courses.nominatim.resolve", return_value=([], (1.0, 2.0, 3.0, 4.0))
     ), patch(
         "app.routers.courses.overpass.search_courses", side_effect=too_many
     ):
@@ -276,7 +276,7 @@ def test_search_reports_unavailable_when_overpass_rate_limits(client, auth_heade
 
 def test_search_reports_unavailable_when_geocoding_fails(client, auth_headers):
     with patch(
-        "app.routers.courses.nominatim.geocode",
+        "app.routers.courses.nominatim.resolve",
         side_effect=httpx.ConnectError("no route to host"),
     ):
         resp = client.get("/api/courses?search=Test", headers=auth_headers)
@@ -312,8 +312,34 @@ def test_search_maps_upstream_status_to_a_meaningful_one(
         response=httpx.Response(upstream_status),
     )
     with patch(
-        "app.routers.courses.nominatim.geocode", return_value=(1.0, 2.0, 3.0, 4.0)
+        "app.routers.courses.nominatim.resolve", return_value=([], (1.0, 2.0, 3.0, 4.0))
     ), patch("app.routers.courses.overpass.search_courses", side_effect=error):
         resp = client.get("/api/courses?search=Test", headers=auth_headers)
 
     assert resp.status_code == expected
+
+
+def test_direct_course_match_does_not_depend_on_overpass(client, auth_headers):
+    course = {"osm_id": "way/430436305", "name": "Lonnie Poole Golf Course",
+              "location_lat": 35.7579, "location_lng": -78.6791, "hole_count": None}
+    with patch("app.routers.courses.nominatim.resolve", return_value=([course], None)), patch(
+        "app.routers.courses.overpass.search_courses", side_effect=AssertionError("unneeded lookup")
+    ):
+        response = client.get("/api/courses?search=Lonnie+Poole+Golf+Course", headers=auth_headers)
+    assert response.status_code == 200
+    assert response.json() == [course]
+
+
+def test_manual_scorecard_can_start_round_during_map_outage(client, auth_headers):
+    with patch("app.routers.courses.overpass.fetch_course_holes", side_effect=httpx.ReadTimeout("busy")):
+        course = client.post("/api/courses", headers=auth_headers, json={
+            "name": "Raleigh Golf Association",
+            "holes": [{"number": n, "par": 4} for n in range(1, 19)],
+        })
+        assert course.status_code == 201
+        round_response = client.post("/api/rounds", headers=auth_headers, json={
+            "course_id": course.json()["id"], "hole_count": 18,
+        })
+    assert round_response.status_code == 201
+    assert round_response.json()["status"] == "in_progress"
+    assert len(round_response.json()["holes"]) == 18

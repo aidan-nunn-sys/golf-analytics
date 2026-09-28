@@ -116,3 +116,9 @@ Courses are unauthenticated-read (any logged-in user) but still require auth lik
   mock. Hazard-to-hole matching would need spatial nearest-hole logic with no way to write a
   truthful test for the "correct" answer — deferred rather than shipped unverified. The
   `hazards` column stays in the schema for a future pass.
+
+### 2026-09-24 — Course-search outage repair
+
+Use Nominatim's golf-course results directly rather than re-searching identical courses through Overpass. Searches that resolve only to a location retain the bounded Overpass query. Do not download hole geometry for every search result: hole counts may be unknown (`null`), and import alone loads geometry. This keeps a busy hole service from hiding already-found courses.
+
+Expose the existing saved-course library in Find a course, make retries explicit, and offer manual scorecard entry after an import failure. Unknown/missing hole data must not be invented. Public Nominatim access remains submitted-search-only, with a bounded five-minute cache, one-request-per-second spacing in the single API process, and attribution per [its usage policy](https://operations.osmfoundation.org/policies/nominatim/). See the [repair and verification record](../plans/2026-09-24-course-search-reliability.md).

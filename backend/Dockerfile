@@ -9,6 +9,7 @@ RUN npm run build
 # --- python runtime ---
 FROM python:3.12-slim
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends poppler-utils && rm -rf /var/lib/apt/lists/*
 COPY backend/pyproject.toml ./
 # alembic.ini and the migration scripts are required at runtime: the app's
 # lifespan calls run_migrations(), which loads /app/alembic.ini on startup.

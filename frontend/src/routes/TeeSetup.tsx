@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
   useCourse,
@@ -8,6 +8,7 @@ import {
   useUpsertTeeRating,
 } from "../api/hooks";
 import type { Hole, RatingScope, TeeSet } from "../api/types";
+import { TeeEditor } from "../components/TeeEditor";
 import { AsyncBoundary } from "../components/AsyncBoundary";
 import { isStrokeIndexPermutation } from "../strokeIndex";
 
@@ -113,14 +114,18 @@ export function TeeSetup() {
 
   const selectedTee = tees?.find((tee) => tee.id === selectedTeeId) ?? tees?.[0];
 
+  const initializedCourse = useRef<number | null>(null);
+  const initializedTee = useRef<number | null>(null);
   useEffect(() => {
-    if (course) {
+    if (course && initializedCourse.current !== course.id) {
+      initializedCourse.current = course.id;
       setStrokeIndexes(course.holes.map((hole) => (hole.stroke_index == null ? "" : String(hole.stroke_index))));
     }
-  }, [course?.id]);
+  }, [course]);
 
   useEffect(() => {
-    if (!selectedTee) return;
+    if (!selectedTee || initializedTee.current === selectedTee.id) return;
+    initializedTee.current = selectedTee.id;
     const fieldsFor = (scope: RatingScope) => {
       const rating = selectedTee.ratings.find((item) => item.scope === scope);
       return rating
@@ -132,7 +137,7 @@ export function TeeSetup() {
         : emptyRating();
     };
     setRatings({ "18": fieldsFor("18"), front9: fieldsFor("front9"), back9: fieldsFor("back9") });
-  }, [selectedTee?.id]);
+  }, [selectedTee]);
 
   const onMutationError = (error: unknown) =>
     setActionError(error instanceof Error ? error.message : "Something went wrong. Please try again.");
@@ -171,9 +176,9 @@ export function TeeSetup() {
 
   const addTee = (event: FormEvent) => {
     event.preventDefault();
-    if (!teeName.trim()) return;
+    if (!teeName.trim() || createTee.isPending) return;
     createTee.mutate(
-      { courseId, name: teeName.trim(), yardage: Number(yardage) },
+      { courseId, name: teeName.trim(), yardage: yardage.trim() ? Number(yardage) : null },
       {
         onSuccess: () => {
           setTeeName("");
@@ -204,7 +209,8 @@ export function TeeSetup() {
             <Link className="text-sm text-green-700" to={`/courses/${courseId}`}>
               ← Back to course
             </Link>
-            <h1 className="mt-2 text-xl font-semibold">{course.name} tees</h1>
+            <h1 className="mt-2 text-3xl font-bold">{course.name} tees</h1>
+            <Link className="btn-primary mt-4" to={`/courses/${courseId}/import`}>Import tees & scorecard</Link>
           </div>
 
           {actionError && (
@@ -217,13 +223,14 @@ export function TeeSetup() {
           )}
           {validationError && <div className="text-sm text-red-600">{validationError}</div>}
 
-          <section className="space-y-3">
+          <section className="panel space-y-3">
             <h2 className="font-semibold">Tee sets</h2>
             <ul className="space-y-2">
               {tees?.map((tee) => (
-                <li className="flex justify-between rounded border bg-white px-3 py-2 text-sm" key={tee.id}>
+                <li className="rounded border bg-white px-3 py-2 text-sm" key={tee.id}>
                   <span>{tee.name}</span>
                   <span className="text-gray-500">{tee.yardage == null ? "Yardage —" : `${tee.yardage} yd`}</span>
+                  <TeeEditor tee={tee} holes={course.holes} />
                 </li>
               ))}
             </ul>
@@ -259,7 +266,7 @@ export function TeeSetup() {
           </section>
 
           {selectedTee ? (
-            <section className="space-y-3">
+            <section className="panel space-y-3">
               <h2 className="font-semibold">Ratings</h2>
               {(tees?.length ?? 0) > 1 && (
                 <select
@@ -301,9 +308,9 @@ export function TeeSetup() {
             <p className="text-sm text-gray-500">Add a tee before entering ratings.</p>
           )}
 
-          <section className="space-y-3">
+          <section className="panel space-y-3">
             <h2 className="font-semibold">Stroke indexes</h2>
-            <form className="space-y-3" onSubmit={saveStrokeIndexes}>
+            <form className="panel space-y-3" onSubmit={saveStrokeIndexes}>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {course.holes.map((hole, index) => (
                   <label className="text-sm" key={hole.id}>

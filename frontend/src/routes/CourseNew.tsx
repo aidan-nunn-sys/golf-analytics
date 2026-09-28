@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useCreateManualCourse } from "../api/hooks";
 
 interface HoleRow {
@@ -8,7 +8,8 @@ interface HoleRow {
 }
 
 export function CourseNew() {
-  const [name, setName] = useState("");
+  const [params] = useSearchParams();
+  const [name, setName] = useState(params.get("name") ?? "");
   const [holes, setHoles] = useState<HoleRow[]>([{ number: 1, par: "" }]);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -43,6 +44,14 @@ export function CourseNew() {
   return (
     <form className="space-y-4" onSubmit={onSubmit}>
       <h1 className="text-lg font-semibold">Add a course</h1>
+      <p className="text-sm text-gray-600">Enter the pars from the scorecard to start a round without the map service. GPS green locations are not included.</p>
+      <div className="flex gap-2" role="group" aria-label="Scorecard length">
+        {[9, 18].map((count) => <button key={count} type="button"
+          className="rounded border px-3 py-1.5 text-sm" onClick={() => setHoles((current) =>
+            Array.from({ length: count }, (_, i) => current[i] ?? { number: i + 1, par: "" }))}>
+          {count} holes
+        </button>)}
+      </div>
       <input
         className="w-full rounded border px-3 py-1.5 text-sm"
         placeholder="Course name"

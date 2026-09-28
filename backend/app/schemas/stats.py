@@ -9,6 +9,16 @@ class DirectionSplit(BaseModel):
     right: int
 
 
+class TotalDistanceStats(BaseModel):
+    count: int
+    average: float | None
+    median: float | None
+    consistency: float | None
+    minimum: float | None
+    maximum: float | None
+    direction: DirectionSplit
+
+
 class ClubStats(BaseModel):
     count: int
     avg_carry: float | None
@@ -17,6 +27,7 @@ class ClubStats(BaseModel):
     min_carry: float | None
     max_carry: float | None
     direction: DirectionSplit
+    total: TotalDistanceStats
 
 
 class GapRow(BaseModel):
@@ -24,6 +35,10 @@ class GapRow(BaseModel):
     label: str
     avg_carry: float | None
     gap_to_next: float | None
+    avg_total: float | None
+    total_gap_to_next: float | None
+    carry_count: int
+    total_count: int
 
 
 class DashboardClub(BaseModel):

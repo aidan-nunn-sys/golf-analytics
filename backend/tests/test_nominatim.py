@@ -78,3 +78,40 @@ def test_geocode_leaves_a_large_bbox_alone(monkeypatch):
     )
 
     assert nominatim.geocode("Wake County", "http://fake") == (35.0, -79.0, 36.0, -78.0)
+
+
+def test_resolve_returns_golf_courses_without_a_second_lookup(monkeypatch):
+    monkeypatch.setattr(nominatim, "_get", lambda *args: [
+        {"class": "leisure", "type": "golf_course", "osm_type": "way", "osm_id": 430436305,
+         "name": "Lonnie Poole Golf Course", "lat": "35.7579", "lon": "-78.6791"},
+        {"class": "leisure", "type": "golf_course", "osm_type": "relation", "osm_id": 6406053,
+         "name": "Raleigh Golf Association", "lat": "35.7376", "lon": "-78.6673"},
+        {"class": "aeroway", "type": "aerodrome", "osm_type": "relation", "osm_id": 123},
+    ])
+    courses, bbox = nominatim.resolve("golf", "http://fake")
+    assert [c["osm_id"] for c in courses] == ["way/430436305", "relation/6406053"]
+    assert courses[0]["hole_count"] is None
+    assert courses[0]["location_lat"] == 35.7579
+    assert bbox is None
+
+
+def test_get_caches_and_spaces_requests(monkeypatch):
+    import httpx
+
+    calls = []
+    waits = []
+    monkeypatch.setattr(nominatim, "_cache", nominatim.OrderedDict())
+    monkeypatch.setattr(nominatim, "_last_request", 0)
+    monkeypatch.setattr(nominatim, "monotonic", lambda: 10)
+    monkeypatch.setattr(nominatim, "sleep", waits.append)
+
+    def get(url, **kwargs):
+        calls.append(kwargs["params"])
+        return httpx.Response(200, json=[], request=httpx.Request("GET", url))
+
+    monkeypatch.setattr(nominatim.httpx, "get", get)
+    nominatim._get("http://fake", {"q": "Lonnie"})
+    nominatim._get("http://fake", {"q": "Lonnie"})
+    nominatim._get("http://fake", {"q": "Raleigh"})
+    assert len(calls) == 2
+    assert waits == [0, 1]

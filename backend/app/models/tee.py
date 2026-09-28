@@ -1,4 +1,4 @@
-from sqlalchemy import Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Float, ForeignKey, Integer, JSON, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -6,6 +6,8 @@ from app.database import Base
 
 class TeeSet(Base):
     __tablename__ = "tee_sets"
+    __table_args__ = (UniqueConstraint("course_id", "source_key", name="uq_course_tee_source"),)
+    source_key: Mapped[str | None] = mapped_column(String, nullable=True)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     course_id: Mapped[int] = mapped_column(
@@ -14,6 +16,7 @@ class TeeSet(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     yardage: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    hole_yardages: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict, server_default="{}")
     ratings: Mapped[list["TeeRating"]] = relationship(
         back_populates="tee_set", cascade="all, delete-orphan"
     )

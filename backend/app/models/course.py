@@ -9,6 +9,7 @@ from app.database import Base
 class Course(Base):
     __tablename__ = "courses"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     osm_id: Mapped[str | None] = mapped_column(String, unique=True, nullable=True)
     import_source: Mapped[str] = mapped_column(String, nullable=False, default="manual")
@@ -17,6 +18,10 @@ class Course(Base):
     imported_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+    scorecard_source: Mapped[str | None] = mapped_column(String, nullable=True)
+    scorecard_imported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    scorecard_urls: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
     holes: Mapped[list["Hole"]] = relationship(
         back_populates="course", order_by="Hole.number", cascade="all, delete-orphan"

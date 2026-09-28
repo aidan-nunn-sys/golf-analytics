@@ -1,0 +1,24 @@
+import { afterEach, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
+import { BagAdvice } from './BagAdvice';
+import { downloadProfile } from '../offline/bagProfile';
+vi.mock('../auth/AuthContext', () => ({ useAuth: () => ({ user: { id: 1, unit_preference: 'meters' } }) }));
+afterEach(() => vi.restoreAllMocks());
+const carry = { count: 8, excluded: 0, median: 150, p10: 140, p90: 160, minimum: 130, maximum: 170, last_played: '2026-09-01' };
+const profile = { source: 'all', generated_at: '2026-09-27T12:00:00Z', clubs: [{ club_id: 1, label: '7 Iron', carry, total: { ...carry, median: 170 } }] };
+it('uses a saved profile offline, converts meters and shows insufficient GPS carry data', async () => {
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue({ ok: true, json: async () => profile } as Response);
+  await downloadProfile(1);
+  vi.mocked(fetch).mockRejectedValue(new Error('offline'));
+  render(<BagAdvice />, { wrapper: MemoryRouter });
+  await screen.findByText(/Could not refresh/);
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText('Target distance (m)'), '137.16');
+  expect(screen.getByRole('heading', { name: /Closest recorded distance.*7 Iron/ })).toBeInTheDocument();
+  expect(screen.getByText(/Typical carry: 137.2 m/)).toBeInTheDocument();
+  await user.selectOptions(screen.getByLabelText('Shot source'), 'gps');
+  expect(await screen.findByText(/No saved profile for this source/)).toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: /Closest recorded/ })).not.toBeInTheDocument();
+});

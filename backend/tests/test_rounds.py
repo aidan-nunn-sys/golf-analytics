@@ -33,7 +33,7 @@ def _make_course(db_session):
     db_session.add(course)
     db_session.commit()
     db_session.refresh(course)
-    for n, par in [(1, 4), (2, 3), (3, 5)]:
+    for n, par in [(1, 4), (2, 3), (3, 5)] + [(n, 4) for n in range(4, 19)]:
         db_session.add(Hole(course_id=course.id, number=n, par=par))
     db_session.commit()
     return course
@@ -46,8 +46,8 @@ def test_create_round_creates_round_hole_per_hole(client, auth_headers, db_sessi
     body = resp.json()
     assert body["status"] == "in_progress"
     assert body["current_hole"] == 1
-    assert [h["hole_number"] for h in body["holes"]] == [1, 2, 3]
-    assert [h["par"] for h in body["holes"]] == [4, 3, 5]
+    assert [h["hole_number"] for h in body["holes"]] == list(range(1, 19))
+    assert [h["par"] for h in body["holes"]] == [4, 3, 5] + [4] * 15
 
 
 def test_create_round_requires_holes(client, auth_headers, db_session):
@@ -418,3 +418,22 @@ def test_unknown_inline_hole_number_leaves_no_orphaned_round(client, auth_header
 
     after = client.get("/api/rounds", headers=auth_headers).json()
     assert len(after) == before
+
+
+def test_incomplete_scorecard_cannot_start_eighteen_holes(client, auth_headers):
+    course = client.post('/api/courses', headers=auth_headers, json={'name': 'Incomplete', 'holes': [{'number': 1, 'par': 4}]}).json()
+    response = client.post('/api/rounds', headers=auth_headers, json={'course_id': course['id']})
+    assert response.status_code == 422
+    assert 'Complete the selected scorecard' in response.json()['detail']
+    assert client.get('/api/rounds', headers=auth_headers).json() == []
+
+
+def test_back_nine_contains_only_selected_holes_and_starts_at_ten(client, auth_headers, rated_course):
+    cid, tid = rated_course
+    response = client.post('/api/rounds', headers=auth_headers, json={'course_id': cid, 'tee_set_id': tid, 'hole_count': 9, 'nine': 'back'})
+    assert response.status_code == 201
+    body = response.json()
+    assert body['current_hole'] == 10
+    assert [h['hole_number'] for h in body['holes']] == list(range(10, 19))
+    assert client.patch(f"/api/rounds/{body['id']}", headers=auth_headers, json={'current_hole': 1}).status_code == 422
+    assert client.patch(f"/api/rounds/{body['id']}", headers=auth_headers, json={'status': None}).status_code == 422

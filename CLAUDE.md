@@ -152,16 +152,41 @@ All routes are served under `/api`.
 
 ## Status
 
-Pillars 1–3 have backend and frontend implementations. Pillar 3 now includes
-past-round entry, Handicap history, and dashboard/navigation integration.
-The September 22 scoring trends and practice priorities remain in place.
+Pillars 1–3 have backend/frontend implementations, including past-round entry,
+handicap history, scoring trends, and practice suggestions. The approved
+2026-09-24 tee/scorecard import and usability refactor is implemented.
 
-Verified 2026-09-24:
-- Frontend: **158 tests** pass; production build including TypeScript passes.
-- Lint exits successfully with four existing warnings in AuthContext and TeeSetup.
-- Full backend suite passes outside the sandbox (sandboxed TestClient stalled).
-- Existing course-search geocoding/timeouts and scorecard validation changes are preserved and tested.
-- Live browser/Docker smoke was not performed in this pass. Plan 3b records that remaining verification explicitly.
+- Official imports: RGA Public 18 (5 tees) and Lonnie Poole (12 rating-category choices). Authenticated preview/apply, signed expiring previews, conflict detection, preserved geometry, and idempotent tee identities.
+- `RoundHole.stroke_index` is now snapshotted. The migration backfills existing rows. Handicap history must read that snapshot, never live `Hole.stroke_index`.
+- New rounds require a complete selected scope with real pars; only selected holes are stored, and back-nine rounds start at 10. Legacy all-hole round rows remain scoped in stats/output.
+- Responsive navigation and course setup, guarded unsaved live scoring, recoverable page errors, and lazy-loaded maps.
+- Verified: **219 backend tests**, **171 frontend tests**, final auth/client regression checks, production build/TypeScript. Lint succeeds with one existing Fast Refresh warning. Both official parsers passed live read-only checks.
+- Frontend/API health passed. No browser was connected for visual smoke; the changed Docker image was not built in this pass. See `docs/superpowers/plans/2026-09-24-tee-scorecard-import.md`.
 
-**Next:** live smoke of backlog → scorecard → Handicap, then select a new slice
-(per-course trends, launch-monitor import, or expanded learning profile).
+**Next:** real-device visual/round-start smoke, offline-safe scoring and data
+export/backup, then wider verified course coverage. See `docs/product-roadmap.md`.
+
+## September 27 Play plan and personal notebook increment
+
+Implemented **Play → Plan** with account/source-scoped offline club advice and a
+private course-hole notebook. Notebook records are separate from round green notes;
+`hole_notes` has a unique user/course/hole key and revision-checked updates. Migration
+`g74b51e93c25` follows `a74b51e93c24`. Local drafts and pending note records survive
+reload; synchronization preserves newer edits and requires conflict review. Personal
+notes use a separate recovery export and block PWA updates while pending.
+
+Verified 263 backend tests, 236 frontend tests, build/TypeScript, lint, and browser
+checks for offline advice, note reload/reconnect and reuse in a new offline round.
+See `docs/play-plan-notebook.md` and the dated spec/plan. Next product work: richer
+course geometry; real-phone field validation remains. Server-preserved shot traces are now implemented below.
+
+## Shot history and replay — 2026-09-27
+
+Implemented revisioned per-round shot history, durable GPS endpoints and metadata,
+manual entry, recoverable removal, conflict review, and offline vector replay.
+Migration `h85c62fa4d36` follows `g74b51e93c25`. Shot edits never alter scorecards.
+Removed shots must be excluded from club statistics; historical missing positions
+and order stay unknown. Device merges must preserve newer edits and account isolation.
+Verified 276 backend tests, 242 frontend tests, build/TypeScript, lint (two existing
+Fast Refresh warnings), and isolated mobile browser offline/reconnect workflows.
+See `docs/shot-history-replay.md`; real-phone field testing remains outstanding.

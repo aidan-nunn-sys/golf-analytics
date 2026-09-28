@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -17,14 +19,14 @@ from app.schemas.shot import RoundShotCreate, ShotOut
 from app.schemas.stats import RoundStats
 from app.stats.geo import haversine_yards
 from app.stats.handicap.history import walk_history
-from app.stats.handicap.scope import scope_for
+from app.stats.handicap.scope import scope_for, covers_hole
 
 router = APIRouter(prefix="/rounds", tags=["rounds"])
 
 
-def _owned_round(db: Session, round_id: int, user: User) -> Round:
+def _owned_round(db: Session, round_id: int, user: User, *, include_deleted: bool = False) -> Round:
     r = db.get(Round, round_id)
-    if r is None or r.user_id != user.id:
+    if r is None or r.user_id != user.id or (r.deleted_at is not None and not include_deleted):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Round not found")
     return r
 
@@ -45,12 +47,19 @@ def _round_out(db: Session, r: Round) -> RoundOut:
             fairway_hit=rh.fairway_hit,
             penalties=rh.penalties,
         )
-        for rh, number in rows
+        for rh, number in rows if covers_hole(scope_for(r.hole_count, r.nine), number)
     ]
     return RoundOut(
+        revision=r.revision,
+        green_notes=r.green_notes,
+        course_name=r.course_name,
+        tee_name=r.tee_name,
+        hole_yardages=r.hole_yardages,
         id=r.id,
         course_id=r.course_id,
         date=r.date,
+        notes=r.notes,
+        deleted_at=r.deleted_at,
         status=r.status,
         current_hole=r.current_hole,
         tee_set_id=r.tee_set_id,
@@ -106,26 +115,28 @@ def create_round(
     course = db.get(Course, payload.course_id)
     if course is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Course not found")
+    if course.archived_at is not None:
+        raise HTTPException(409, "Restore this course before starting a new round")
     holes = db.scalars(
         select(Hole).where(Hole.course_id == course.id).order_by(Hole.number)
     ).all()
-    if not holes:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Course has no holes")
-    if payload.holes:
-        # Validate inline hole numbers up front. The round and its RoundHole rows
-        # are committed below, so raising after that point would leave an orphaned
-        # round behind for a request that failed.
-        unknown = sorted({h.number for h in payload.holes} - {h.number for h in holes})
-        if unknown:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_CONTENT,
-                f"Course has no hole {unknown[0]}",
-            )
     scope = scope_for(payload.hole_count, payload.nine)
+    holes = [h for h in holes if covers_hole(scope, h.number)]
+    expected = set(range(10, 19) if scope == "back9" else range(1, 10) if scope == "front9" else range(1, 19))
+    if {h.number for h in holes} != expected or len(holes) != len(expected) or any(h.par not in (3, 4, 5, 6) for h in holes):
+        raise HTTPException(422, "Complete the selected scorecard before starting: every hole needs a valid par. Import the scorecard or finish course setup.")
+    if payload.holes:
+        unknown = sorted({h.number for h in payload.holes} - expected)
+        if unknown:
+            raise HTTPException(422, f"Hole {unknown[0]} is not in the selected round scope")
     course_rating, slope_rating, course_par = _snapshot_rating(
         db, payload.tee_set_id, payload.course_id, scope
     )
+    tee = db.get(TeeSet, payload.tee_set_id) if payload.tee_set_id else None
     r = Round(
+        course_name=course.name,
+        tee_name=tee.name if tee else None,
+        hole_yardages={k: v for k, v in (tee.hole_yardages if tee else {}).items() if int(k) in expected},
         user_id=user.id,
         course_id=payload.course_id,
         date=payload.date,
@@ -136,41 +147,31 @@ def create_round(
         course_rating=course_rating,
         slope_rating=slope_rating,
         course_par=course_par,
+        current_hole=min(expected),
     )
     db.add(r)
+    db.flush()
+    incoming = {h.number: h for h in payload.holes or []}
+    for hole in holes:
+        row = RoundHole(round_id=r.id, hole_id=hole.id, par=hole.par, stroke_index=hole.stroke_index)
+        if hole.number in incoming:
+            value = incoming[hole.number]
+            row.strokes, row.putts = value.strokes, value.putts
+            row.fairway_hit, row.penalties = value.fairway_hit, value.penalties
+        db.add(row)
     db.commit()
-    db.refresh(r)
-    for h in holes:
-        # NOTE: OSM-imported holes can have a null par (no par tag found);
-        # RoundHole.par is non-nullable so we default to 4 rather than crash.
-        # Manual courses always supply par (ManualHoleIn.par is required), so
-        # this only ever fires for thin OSM data.
-        db.add(RoundHole(round_id=r.id, hole_id=h.id, par=h.par or 4))
-    db.commit()
-    db.refresh(r)
-
-    if payload.holes:
-        by_number = {rh.hole.number: rh for rh in r.holes}
-        for incoming in payload.holes:
-            # Numbers were validated against the course before anything was
-            # committed, so this lookup cannot miss.
-            rh = by_number[incoming.number]
-            rh.strokes = incoming.strokes
-            rh.putts = incoming.putts
-            rh.fairway_hit = incoming.fairway_hit
-            rh.penalties = incoming.penalties
-        db.commit()
 
     return _round_out(db, r)
 
 
 @router.get("", response_model=list[RoundOut])
 def list_rounds(
+    deleted: bool = False,
     db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> list[RoundOut]:
     rounds = db.scalars(
         select(Round)
-        .where(Round.user_id == user.id)
+        .where(Round.user_id == user.id, Round.deleted_at.is_not(None) if deleted else Round.deleted_at.is_(None))
         .order_by(Round.date.desc(), Round.id.desc())
     ).all()
     return [_round_out(db, r) for r in rounds]
@@ -193,6 +194,10 @@ def update_round(
     user: User = Depends(get_current_user),
 ) -> RoundOut:
     r = _owned_round(db, round_id, user)
+    if payload.current_hole is not None and (not covers_hole(scope_for(r.hole_count, r.nine), payload.current_hole) or not any(h.hole.number == payload.current_hole for h in r.holes)):
+        raise HTTPException(422, "That hole is not part of this round")
+    if payload.green_notes and not {int(n) for n in payload.green_notes}.issubset({h.hole.number for h in r.holes}):
+        raise HTTPException(422, "Green notes must refer to a hole in this round")
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(r, field, value)
     db.commit()
@@ -216,8 +221,14 @@ def update_round_hole(
     ).scalar_one_or_none()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Hole not found in round")
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    values = payload.model_dump(exclude_unset=True)
+    strokes, putts = values.get("strokes", row.strokes), values.get("putts", row.putts)
+    penalties = values.get("penalties", row.penalties)
+    if strokes is not None and ((putts is not None and putts > strokes) or penalties > strokes or (putts or 0) + penalties > strokes):
+        raise HTTPException(422, "Putts and penalties cannot exceed total strokes")
+    for field, value in values.items():
         setattr(row, field, value)
+    r.revision += 1
     db.commit()
     return _round_out(db, r)
 
@@ -236,6 +247,8 @@ def create_round_shot(
     if club is None or club.user_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Club not found")
     hole_number = payload.hole_number if payload.hole_number is not None else r.current_hole
+    if not covers_hole(scope_for(r.hole_count, r.nine), hole_number) or not any(h.hole.number == hole_number for h in r.holes):
+        raise HTTPException(422, "That hole is not part of this round")
     # GPS measures start-of-swing to ball-at-rest, i.e. carry + roll combined —
     # a different quantity from Pillar 1's manually-entered flight-carry, so it
     # goes in total_yards, not carry_yards. See 2026-07-15 decision log entry.
@@ -247,6 +260,9 @@ def create_round_shot(
         hole_number=hole_number,
         club_id=payload.club_id,
         total_yards=round(ground_yards, 1),
+        club_label=club.label,
+        start_position={"lat":payload.start_lat,"lng":payload.start_lng,"accuracy":None,"timestamp":None},
+        end_position={"lat":payload.end_lat,"lng":payload.end_lng,"accuracy":None,"timestamp":None},
         direction=payload.direction,
         source="gps",
         accuracy=payload.accuracy,
@@ -266,3 +282,27 @@ def get_round_stats(
     r = _owned_round(db, round_id, user)
     results = {x["round_id"]: x for x in walk_history(_round_records(db, user))}
     return _round_stats_for(r, results.get(r.id))
+
+
+@router.delete("/{round_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_round(
+    round_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> None:
+    r = _owned_round(db, round_id, user, include_deleted=True)
+    if r.deleted_at is None:
+        r.deleted_at = datetime.now(timezone.utc)
+        db.commit()
+
+
+@router.post("/{round_id}/restore", response_model=RoundOut)
+def restore_round(
+    round_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> RoundOut:
+    r = _owned_round(db, round_id, user, include_deleted=True)
+    r.deleted_at = None
+    db.commit()
+    return _round_out(db, r)

@@ -4,8 +4,9 @@ const BASE = "/api";
 const TOKEN_KEY = "golf.token";
 
 let unauthorizedHandler: () => void = () => {};
-export function onUnauthorized(fn: () => void): void {
+export function onUnauthorized(fn: () => void): () => void {
   unauthorizedHandler = fn;
+  return () => { if (unauthorizedHandler === fn) unauthorizedHandler = () => {}; };
 }
 
 export class ApiError extends Error {
@@ -37,7 +38,9 @@ async function handle<T>(res: Response): Promise<T> {
     let detail = res.statusText;
     try {
       const body = await res.json();
-      if (body?.detail) detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+      if (body?.detail) detail = typeof body.detail === "string" ? body.detail : Array.isArray(body.detail)
+        ? body.detail.map((item: { loc?: (string | number)[]; msg?: string }) => `${item.loc?.slice(1).join(" · ") || "Request"}: ${item.msg || "Invalid value"}`).join(". ")
+        : "The request could not be completed.";
     } catch {
       /* non-JSON error body */
     }
@@ -47,8 +50,8 @@ async function handle<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { headers: authHeaders() });
+export async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, { headers: authHeaders(), ...(signal ? { signal } : {}) });
   return handle<T>(res);
 }
 
@@ -56,9 +59,11 @@ export async function apiSend<T>(
   method: "POST" | "PATCH" | "PUT" | "DELETE",
   path: string,
   body?: unknown,
+  signal?: AbortSignal,
 ): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
+    ...(signal ? { signal } : {}),
     headers: { "Content-Type": "application/json", ...authHeaders() },
     body: body === undefined ? undefined : JSON.stringify(body),
   });

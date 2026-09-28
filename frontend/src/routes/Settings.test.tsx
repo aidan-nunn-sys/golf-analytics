@@ -1,3 +1,4 @@
+import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -37,7 +38,7 @@ describe("Settings", () => {
 
   it("pre-fills the form from useMe", () => {
     setup();
-    render(<Settings />);
+    render(<Settings />, { wrapper: MemoryRouter });
 
     expect(screen.getByDisplayValue("Test User")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Yards")).toBeInTheDocument();
@@ -46,7 +47,7 @@ describe("Settings", () => {
   it("saves the edited display name and unit preference", async () => {
     const { update } = setup();
     const userSim = userEvent.setup();
-    render(<Settings />);
+    render(<Settings />, { wrapper: MemoryRouter });
 
     const nameInput = screen.getByDisplayValue("Test User");
     await userSim.clear(nameInput);
@@ -63,7 +64,7 @@ describe("Settings", () => {
   it("shows 'Saved' after a successful mutation", () => {
     const { update } = setup();
     update.isSuccess = true;
-    render(<Settings />);
+    render(<Settings />, { wrapper: MemoryRouter });
 
     expect(screen.getByText("Saved")).toBeInTheDocument();
   });
@@ -74,7 +75,7 @@ describe("Settings", () => {
     update.mutate.mockImplementation((_payload, options) => {
       options.onError?.(new Error("Failed to save settings"));
     });
-    render(<Settings />);
+    render(<Settings />, { wrapper: MemoryRouter });
 
     await userSim.click(screen.getByRole("button", { name: "Save" }));
 

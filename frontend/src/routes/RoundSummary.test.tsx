@@ -248,3 +248,21 @@ describe("RoundSummary", () => {
     expect(screen.getByText("Round not found")).toBeInTheDocument();
   });
 });
+
+
+it("corrects and clears a hole score from the summary", () => {
+  const { updateHole } = setup();
+  const input = screen.getByLabelText("Strokes for hole 1");
+  fireEvent.change(input, { target: { value: "4" } });
+  fireEvent.blur(input);
+  expect(updateHole.mutate).toHaveBeenCalledWith({ number: 1, strokes: 4 }, expect.any(Object));
+  fireEvent.change(input, { target: { value: "" } });
+  fireEvent.blur(input);
+  expect(updateHole.mutate).toHaveBeenLastCalledWith({ number: 1, strokes: null }, expect.any(Object));
+});
+
+
+it("compares an incomplete round only against the pars of scored holes", () => {
+  setup({ round: roundFixture({ holes: [roundHoleFixture({ strokes: 5 }), roundHoleFixture({ hole_number: 2, par: 4, strokes: null })] }) });
+  expect(within(screen.getByText("Total: 5").parentElement!).getByText("+1")).toBeInTheDocument();
+});

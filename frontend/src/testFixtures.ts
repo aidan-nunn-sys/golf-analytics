@@ -42,6 +42,8 @@ export function roundHoleFixture(overrides: Partial<RoundHole> = {}): RoundHole 
 
 export function roundFixture(overrides: Partial<Round> = {}): Round {
   return {
+    notes: "",
+    deleted_at: null,
     id: 5,
     course_id: 7,
     date: "2026-07-19",

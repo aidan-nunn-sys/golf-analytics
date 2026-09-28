@@ -1,4 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from typing import Literal
+from datetime import datetime, timezone
+from app.stats.bag import distribution
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -22,6 +25,33 @@ from app.stats.round_stats import compute_round_stats
 
 router = APIRouter(tags=["stats"])
 
+
+@router.get('/stats/bag-profile')
+def bag_profile(
+    source: Literal['all', 'manual', 'gps', 'launch_monitor'] = 'all',
+    db: Session = Depends(get_db), user: User = Depends(get_current_user),
+) -> dict:
+    clubs = db.scalars(select(Club).where(
+        Club.user_id == user.id, Club.is_active.is_(True), Club.category != 'putter'
+    ).order_by(Club.order_index, Club.id)).all()
+    rows = []
+    for parent, parent_id in [(RangeSession, Shot.session_id), (Round, Shot.round_id)]:
+        query = select(Shot, parent.date).join(parent, parent_id == parent.id).where(parent.user_id == user.id, Shot.deleted.is_(False))
+        if parent is Round:
+            query = query.where(Round.deleted_at.is_(None), Shot.deleted.is_(False))
+        if source != 'all':
+            query = query.where(Shot.source == source)
+        rows.extend(db.execute(query).all())
+    grouped = {}
+    for shot, played in rows:
+        grouped.setdefault(shot.club_id, []).append((shot, played))
+    return {'source': source, 'generated_at': datetime.now(timezone.utc).isoformat(), 'clubs': [
+        {'club_id': club.id, 'label': club.label,
+         **{mode: distribution([(getattr(shot, mode + '_yards'), played)
+                                for shot, played in grouped.get(club.id, [])])
+            for mode in ('carry', 'total')}} for club in clubs
+    ]}
+
 # A round only feeds the handicap walk / trend views once it has a final
 # scorecard. `completed` and `abandoned` both qualify: an 18-hole round
 # walked off after 13 holes is `abandoned`, not `completed`, but it still
@@ -31,23 +61,34 @@ router = APIRouter(tags=["stats"])
 _SCORED_STATUSES = ("completed", "abandoned")
 
 
-def _shots_for_club(db: Session, club_id: int, user_id: int) -> list[dict]:
+def _club_measurements(db: Session, club_id: int, user_id: int) -> dict:
+    # A shot may contain both measurements; neither substitutes for the other.
     range_rows = db.execute(
-        select(Shot.carry_yards, Shot.direction)
+        select(Shot.carry_yards, Shot.total_yards, Shot.direction)
         .join(RangeSession, Shot.session_id == RangeSession.id)
-        .where(Shot.club_id == club_id, RangeSession.user_id == user_id)
+        .where(Shot.club_id == club_id, RangeSession.user_id == user_id, Shot.deleted.is_(False))
     ).all()
-    # On-course GPS shots store ground distance (carry + roll) in total_yards,
-    # a different quantity from range shots' flight-carry — see 2026-07-15
-    # decision log entry. Both feed club stats/gapping as a "distance" value.
     round_rows = db.execute(
-        select(Shot.total_yards, Shot.direction)
+        select(Shot.carry_yards, Shot.total_yards, Shot.direction)
         .join(Round, Shot.round_id == Round.id)
-        .where(Shot.club_id == club_id, Round.user_id == user_id)
+        .where(Shot.club_id == club_id, Round.user_id == user_id, Round.deleted_at.is_(None), Shot.deleted.is_(False))
     ).all()
-    return [{"carry_yards": r.carry_yards, "direction": r.direction} for r in range_rows] + [
-        {"carry_yards": r.total_yards, "direction": r.direction} for r in round_rows
-    ]
+    shots = [*range_rows, *round_rows]
+    carry = compute_club_stats([
+        {"carry_yards": s.carry_yards, "direction": s.direction}
+        for s in shots if s.carry_yards is not None
+    ])
+    total = compute_club_stats([
+        {"carry_yards": s.total_yards, "direction": s.direction}
+        for s in shots if s.total_yards is not None
+    ])
+    # Legacy carry fields now mean carry only. Total is an additive API field.
+    return {**carry, "total": {
+        "count": total["count"], "average": total["avg_carry"],
+        "median": total["median_carry"], "consistency": total["consistency"],
+        "minimum": total["min_carry"], "maximum": total["max_carry"],
+        "direction": total["direction"],
+    }}
 
 
 @router.get("/clubs/{club_id}/stats", response_model=ClubStats)
@@ -59,20 +100,31 @@ def club_stats(
     club = db.get(Club, club_id)
     if club is None or club.user_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Club not found")
-    return compute_club_stats(_shots_for_club(db, club_id, user.id))
+    return _club_measurements(db, club_id, user.id)
 
 
 def _gapping_rows(db: Session, user_id: int) -> list[dict]:
     clubs = db.scalars(
-        select(Club).where(Club.user_id == user_id, Club.is_active.is_(True))
+        select(Club).where(Club.user_id == user_id, Club.is_active.is_(True), Club.category != "putter")
     ).all()
     enriched = []
     for club in clubs:
-        stats = compute_club_stats(_shots_for_club(db, club.id, user_id))
-        enriched.append(
-            {"club_id": club.id, "label": club.label, "avg_carry": stats["avg_carry"]}
-        )
-    return compute_gapping(enriched)
+        stats = _club_measurements(db, club.id, user_id)
+        enriched.append({
+            "club_id": club.id, "label": club.label, "avg_carry": stats["avg_carry"],
+            "avg_total": stats["total"]["average"], "carry_count": stats["count"],
+            "total_count": stats["total"]["count"],
+        })
+    carry_gaps = {r["club_id"]: r["gap_to_next"] for r in compute_gapping(enriched)}
+    total_gaps = {r["club_id"]: r["gap_to_next"] for r in compute_gapping([
+        {**r, "avg_carry": r["avg_total"]} for r in enriched
+    ])}
+    return [
+        {**r, "gap_to_next": carry_gaps.get(r["club_id"]),
+         "total_gap_to_next": total_gaps.get(r["club_id"])}
+        for r in sorted(enriched, key=lambda r: r["avg_carry"] or 0, reverse=True)
+        if r["avg_carry"] is not None or r["avg_total"] is not None
+    ]
 
 
 @router.get("/stats/gapping", response_model=list[GapRow])
@@ -88,7 +140,7 @@ def dashboard(
 ) -> dict:
     clubs = db.scalars(
         select(Club)
-        .where(Club.user_id == user.id, Club.is_active.is_(True))
+        .where(Club.user_id == user.id, Club.is_active.is_(True), Club.category != "putter")
         .order_by(Club.order_index)
     ).all()
     club_blocks = [
@@ -97,7 +149,7 @@ def dashboard(
             "label": c.label,
             "category": c.category,
             "order_index": c.order_index,
-            "stats": compute_club_stats(_shots_for_club(db, c.id, user.id)),
+            "stats": _club_measurements(db, c.id, user.id),
         }
         for c in clubs
     ]
@@ -111,13 +163,9 @@ def _round_records(db: Session, user: User) -> list[dict]:
     from the round's own snapshot — never live from the tee (spec 3.2).
     Includes both `completed` and `abandoned` rounds: see _SCORED_STATUSES.
 
-    Holes are sliced to the round's declared scope. `create_round` always
-    lays down all 18 `RoundHole` rows (the course has 18 holes whichever
-    nine you walk), so a front-nine round carries nine rows it never played.
-    Handing those to the engine padded the unplayed nine at net par and then
-    divided an 18-hole-sized gross by the 9-hole Course Rating — a ~90x wrong
-    differential. Slicing here rather than at creation also repairs rounds
-    already in the database.
+    Legacy rounds can contain all 18 RoundHole rows even when only one nine
+    was played. Keep slicing to the declared scope for those records. New
+    rounds store only their selected holes and snapshot each stroke index.
 
     `stroke_index` is passed through as-is, INCLUDING None. Substituting the
     hole number fabricated a stroke allocation: net double bogey and net par
@@ -128,7 +176,7 @@ def _round_records(db: Session, user: User) -> list[dict]:
     """
     rounds = (
         db.query(Round)
-        .filter(Round.user_id == user.id, Round.status.in_(_SCORED_STATUSES))
+        .filter(Round.user_id == user.id, Round.status.in_(_SCORED_STATUSES), Round.deleted_at.is_(None))
         .all()
     )
     records = []
@@ -137,7 +185,7 @@ def _round_records(db: Session, user: User) -> list[dict]:
         holes = [
             {
                 "par": rh.par,
-                "stroke_index": rh.hole.stroke_index,
+                "stroke_index": rh.stroke_index,
                 "strokes": rh.strokes,
             }
             for rh in sorted(r.holes, key=lambda rh: rh.hole.number)
@@ -218,7 +266,7 @@ def get_round_trend(
     results = {r["round_id"]: r for r in walk_history(_round_records(db, user))}
     rounds = (
         db.query(Round)
-        .filter(Round.user_id == user.id, Round.status.in_(_SCORED_STATUSES))
+        .filter(Round.user_id == user.id, Round.status.in_(_SCORED_STATUSES), Round.deleted_at.is_(None))
         .order_by(Round.date.desc(), Round.id.desc())
         .limit(limit)
         .all()

@@ -1,129 +1,61 @@
+import { DownloadCourse } from "../components/DownloadCourse";
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useCourse, useRounds, useCreateRound, useTees } from "../api/hooks";
 import { AsyncBoundary } from "../components/AsyncBoundary";
+import { incompleteHoles } from "../scorecard";
 
 export function CourseDetail() {
-  const { id } = useParams();
-  const courseId = Number(id);
+  const courseId = Number(useParams().id);
   const { data: course, isLoading, error } = useCourse(courseId);
-  const { data: rounds } = useRounds();
-  const { data: tees } = useTees(courseId);
+  const rounds = useRounds();
+  const tees = useTees(courseId);
   const createRound = useCreateRound();
   const navigate = useNavigate();
-  const [actionError, setActionError] = useState<string | null>(null);
   const [teeId, setTeeId] = useState("");
-  const [holeCount, setHoleCount] = useState<9 | 18>(18);
+  const [selectedCount, setSelectedCount] = useState<9 | 18 | null>(null);
+  const holeCount = selectedCount ?? (course?.holes.length === 9 ? 9 : 18);
   const [nine, setNine] = useState<"front" | "back">("front");
-
-  const activeRound = rounds?.find((r) => r.course_id === courseId && r.status === "in_progress");
-
+  const activeRound = rounds.data?.find((r) => r.course_id === courseId && r.status === "in_progress");
+  const missing = incompleteHoles(course?.holes ?? [], holeCount, nine);
+  const scope = holeCount === 18 ? "18" : nine === "front" ? "front9" : "back9";
+  const selectedTee = tees.data?.find((tee) => String(tee.id) === teeId);
+  const rated = selectedTee?.ratings.some((rating) => rating.scope === scope);
+  const pending = !!course?.archived_at || createRound.isPending || rounds.isLoading || tees.isLoading;
   const onStart = () => {
-    const round = {
-      course_id: courseId,
-      tee_set_id: teeId === "" ? null : Number(teeId),
-      hole_count: holeCount,
-      ...(holeCount === 9 ? { nine } : {}),
-    };
-    createRound.mutate(
-      round,
-      {
-        onSuccess: (round) => navigate(`/rounds/${round.id}`),
-        onError: (err: unknown) =>
-          setActionError(err instanceof Error ? err.message : "Something went wrong. Please try again."),
-      },
-    );
+    if (missing.length || pending || rounds.error || tees.error) return;
+    createRound.mutate({ course_id: courseId, tee_set_id: teeId ? Number(teeId) : null, hole_count: holeCount, ...(holeCount === 9 ? { nine } : {}) },
+      { onSuccess: (round) => navigate(`/rounds/${round.id}`) });
   };
-
-  return (
-    <AsyncBoundary loading={isLoading} error={error} isEmpty={!course}>
-      {course && (
-        <div className="space-y-4">
-          <h1 className="text-lg font-semibold">{course.name}</h1>
-          <ul className="space-y-1">
-            {course.holes.map((h) => (
-              <li key={h.id} className="flex justify-between rounded border bg-white p-2 text-sm">
-                <span>Hole {h.number}</span>
-                <span className="text-gray-500">{h.par == null ? "Par —" : `Par ${h.par}`}</span>
-              </li>
-            ))}
-          </ul>
-          {actionError && (
-            <div className="flex items-center justify-between rounded border border-red-300 bg-red-50 p-2 text-sm text-red-700">
-              <span>{actionError}</span>
-              <button type="button" aria-label="Dismiss error" onClick={() => setActionError(null)}>
-                ×
-              </button>
-            </div>
-          )}
-          {activeRound ? (
-            <Link
-              to={`/rounds/${activeRound.id}`}
-              className="inline-block rounded bg-green-600 px-3 py-1.5 text-sm text-white"
-            >
-              Resume round
-            </Link>
-          ) : (
-            <div className="space-y-3">
-              <div className="grid gap-3 sm:grid-cols-3">
-                <label className="space-y-1 text-sm">
-                  <span className="block font-medium">Tee</span>
-                  <select
-                    aria-label="Tee"
-                    value={teeId}
-                    onChange={(event) => setTeeId(event.target.value)}
-                    className="w-full rounded border bg-white px-2 py-1.5"
-                  >
-                    <option value="">No tee (won't count toward Index)</option>
-                    {tees?.map((tee) => (
-                      <option key={tee.id} value={tee.id}>
-                        {tee.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="space-y-1 text-sm">
-                  <span className="block font-medium">Holes</span>
-                  <select
-                    aria-label="Holes"
-                    value={holeCount}
-                    onChange={(event) => setHoleCount(Number(event.target.value) as 9 | 18)}
-                    className="w-full rounded border bg-white px-2 py-1.5"
-                  >
-                    <option value={18}>18</option>
-                    <option value={9}>9</option>
-                  </select>
-                </label>
-                {holeCount === 9 && (
-                  <label className="space-y-1 text-sm">
-                    <span className="block font-medium">Nine</span>
-                    <select
-                      aria-label="Nine"
-                      value={nine}
-                      onChange={(event) => setNine(event.target.value as "front" | "back")}
-                      className="w-full rounded border bg-white px-2 py-1.5"
-                    >
-                      <option value="front">front</option>
-                      <option value="back">back</option>
-                    </select>
-                  </label>
-                )}
-              </div>
-              <button type="button" onClick={onStart} className="rounded bg-green-600 px-3 py-1.5 text-sm text-white">
-                Start round
-              </button>
-            </div>
-          )}
-          <div className="flex gap-4 text-sm">
-            <Link to={`/courses/${courseId}/tees`} className="text-green-700 underline">
-              Set up tees
-            </Link>
-            <Link to={`/rounds/new?course=${courseId}`} className="text-green-700 underline">
-              Enter a past round
-            </Link>
-          </div>
-        </div>
-      )}
-    </AsyncBoundary>
-  );
+  return <AsyncBoundary loading={isLoading} error={error} isEmpty={!course}>
+    {course && <div className="space-y-6">
+      <Link to="/courses" className="text-sm font-medium text-emerald-700">← Your courses</Link>
+      <header className="flex flex-wrap items-end justify-between gap-4"><div><p className="eyebrow">Course overview</p><h1 className="mt-2 text-3xl sm:text-4xl">{course.name}</h1><p className="mt-2 text-sm text-slate-500">{course.holes.length} holes configured · {tees.data?.length ?? 0} tee choices</p></div><Link className="btn-secondary" to={`/courses/${courseId}/import`}>Import tees & scorecard</Link></header>
+      <div className="flex flex-wrap gap-3"><Link className="btn-secondary" to={`/courses/${courseId}/edit`}>Manage course</Link></div>
+      {course.archived_at && <p className="notice">This course is archived. <Link className="font-semibold underline" to={`/courses/${courseId}/edit`}>Restore it</Link> to start a new round.</p>}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+        <section className="panel space-y-5">
+          <div><h2 className="text-xl font-semibold">{activeRound ? "Your round is waiting" : "Set up your round"}</h2><p className="mt-1 text-sm text-slate-500">Choose your tees and the holes you’re playing.</p></div>
+          {rounds.error || tees.error ? <div role="alert" className="error-notice">{(rounds.error || tees.error)?.message}<button className="mt-3 block font-semibold underline" onClick={() => { void rounds.refetch(); void tees.refetch(); }}>Try again</button></div> : null}
+          {createRound.error && <div role="alert" className="error-notice">{createRound.error.message}</div>}
+          {activeRound && <Link className="btn-primary w-full" to={`/rounds/${activeRound.id}`}>Resume round</Link>}
+          <>
+            <label className="block space-y-2 text-sm font-semibold"><span>Tee</span><select className="field" aria-label="Tee" value={teeId} onChange={(e) => setTeeId(e.target.value)} disabled={pending}><option value="">Score only · no rated tee</option>{tees.data?.map((tee) => <option key={tee.id} value={tee.id}>{tee.name}{tee.yardage ? ` · ${tee.yardage.toLocaleString()} yd` : ""}</option>)}</select></label>
+            {!tees.data?.length && !tees.isLoading && <p className="text-sm leading-relaxed text-slate-500">No tees configured yet. Import the official scorecard or <Link className="font-medium text-emerald-700 underline" to={`/courses/${courseId}/tees`}>add tees manually</Link>.</p>}
+            <div className="grid grid-cols-2 gap-3"><label className="block space-y-2 text-sm font-semibold"><span>Holes</span><select className="field" aria-label="Holes" value={holeCount} disabled={pending} onChange={(e) => setSelectedCount(Number(e.target.value) as 9 | 18)}><option value={18}>18 holes</option><option value={9}>9 holes</option></select></label>{holeCount === 9 && <label className="block space-y-2 text-sm font-semibold"><span>Nine</span><select className="field" aria-label="Nine" value={nine} disabled={pending} onChange={(e) => setNine(e.target.value as "front" | "back")}><option value="front">Front nine</option><option value="back">Back nine</option></select></label>}</div>
+            {missing.length > 0 ? <div className="notice"><p className="font-semibold">Finish your scorecard first</p><p className="mt-1">{missing.length} of the selected {holeCount} holes need a valid par. Import a complete scorecard before starting this round.</p><Link className="mt-2 inline-block font-semibold underline" to={`/courses/${courseId}/import`}>Complete course setup</Link></div> : <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-900">All {holeCount} holes are ready to play.</p>}
+            {!rated && <p className="text-xs leading-relaxed text-slate-500">{teeId ? "This tee has no rating for the selected holes." : "A score-only round tracks your score and stats."} It won’t contribute to your Handicap Index.</p>}
+            {!activeRound && <button type="button" onClick={onStart} disabled={missing.length > 0 || pending || !!rounds.error || !!tees.error} className="btn-primary w-full">{createRound.isPending ? "Starting round…" : "Start round"}</button>}
+          </>
+          <DownloadCourse courseId={courseId} teeId={teeId} holeCount={holeCount} nine={nine} disabled={!!course.archived_at||missing.length>0||tees.isLoading||!!tees.error} />
+          <div className="flex flex-wrap gap-x-5 gap-y-2 border-t border-slate-100 pt-4 text-sm font-medium"><Link className="text-emerald-700 underline" to={`/courses/${courseId}/tees`}>Set up tees</Link><Link className="text-emerald-700 underline" to={`/rounds/new?course=${courseId}`}>Enter a past round</Link></div>
+        </section>
+        <section className="panel space-y-4"><div className="flex items-center justify-between"><h2 className="text-xl font-semibold">Scorecard</h2><span className="text-xs font-medium text-slate-500">{course.scorecard_source ? "Official source imported" : "Saved course data"}</span></div>
+          {course.scorecard_imported_at && <p className="text-xs text-slate-500">Imported {new Date(course.scorecard_imported_at).toLocaleDateString()}</p>}
+          {course.holes.length ? <ul className="grid grid-cols-2 gap-2">{course.holes.map((h) => <li key={h.id} className="rounded-xl bg-slate-50 p-3"><span className="text-sm font-semibold">Hole {h.number}</span><span className="mt-1 block text-sm text-slate-500">{h.par == null ? "Par needed" : `Par ${h.par}`}</span>{selectedTee?.hole_yardages?.[h.number] != null && <span className="mt-1 block text-xs text-emerald-800">{selectedTee.hole_yardages[h.number]} yd</span>}</li>)}</ul> : <p className="text-sm text-slate-500">No holes configured. Import the scorecard to get started.</p>}
+          <p className="text-xs leading-relaxed text-slate-500">Green GPS locations: {course.holes.filter((h) => h.green_lat != null && h.green_lng != null).length} of {course.holes.length} holes. Scorecard imports do not add GPS coordinates.</p>
+        </section>
+      </div>
+    </div>}
+  </AsyncBoundary>;
 }

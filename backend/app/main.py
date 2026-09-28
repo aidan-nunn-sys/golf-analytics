@@ -2,11 +2,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from sqlalchemy.orm.exc import StaleDataError
 from fastapi.staticfiles import StaticFiles
 
 from app.database import SessionLocal, run_migrations
-from app.routers import admin, auth, clubs, courses, rounds, sessions, shots, stats, tees
+from app.routers import hole_notes
+from app.routers import shot_history
+from app.routers import course_library, offline, scorecards, admin, auth, clubs, courses, rounds, sessions, shots, stats, tees
 from app.seed import bootstrap_admin
 
 
@@ -24,6 +27,15 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Golf Analytics API", lifespan=lifespan)
 
 api = FastAPI(title="Golf Analytics API")
+@api.exception_handler(StaleDataError)
+async def concurrent_edit(request, exc):
+    return JSONResponse(status_code=409, content={"detail": "This round changed while saving. Refresh and review your changes."})
+
+
+api.include_router(course_library.router)
+api.include_router(hole_notes.router)
+api.include_router(shot_history.router)
+api.include_router(offline.router)
 api.include_router(auth.router)
 api.include_router(admin.router)
 api.include_router(clubs.router)
@@ -33,6 +45,7 @@ api.include_router(sessions.router)
 api.include_router(shots.router)
 api.include_router(stats.router)
 api.include_router(tees.router)
+api.include_router(scorecards.router)
 
 
 @api.get("/health")

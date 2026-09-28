@@ -7,6 +7,9 @@ import {
   useCourseSearch,
   useCreateRound,
   useUpdateRound,
+  useDeleteRound,
+  useRestoreRound,
+  useRounds,
   useUpdateRoundHole,
   useLogRoundShot,
   useTees,
@@ -270,5 +273,31 @@ describe("useCreateTee", () => {
     const [url, opts] = (globalThis.fetch as never as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(url).toBe("/api/courses/7/tees");
     expect(JSON.parse((opts as RequestInit).body as string)).toEqual({ name: "White", yardage: 5800 });
+  });
+});
+
+
+describe("round trash", () => {
+  it.each(["delete", "restore"])("invalidates all affected caches after %s", async (action) => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const affected = [keys.rounds, [...keys.rounds, "trash"], keys.round(5), keys.roundStats(5), keys.roundStats(9), keys.handicap, keys.roundTrends, keys.dashboard, keys.gapping, keys.clubStats(1)];
+    affected.forEach((key) => qc.setQueryData(key, {}));
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: action === "delete" ? 204 : 200, json: () => Promise.resolve({ id: 5 }) });
+    const { result } = renderHook(() => ({ remove: useDeleteRound(5), restore: useRestoreRound() }), { wrapper: wrapperFor(qc) });
+    if (action === "delete") result.current.remove.mutate();
+    else result.current.restore.mutate(5);
+    await waitFor(() => expect(action === "delete" ? result.current.remove.isSuccess : result.current.restore.isSuccess).toBe(true));
+    for (const key of affected) expect(qc.getQueryState(key)?.isInvalidated, String(key)).toBe(true);
+    expect(globalThis.fetch).toHaveBeenCalledWith(action === "delete" ? "/api/rounds/5" : "/api/rounds/5/restore", expect.objectContaining({ method: action === "delete" ? "DELETE" : "POST" }));
+  });
+  it("keeps Trash separate from the active round cache", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve([{ id: 9 }]) });
+    const qc = new QueryClient();
+    qc.setQueryData(keys.rounds, [{ id: 5 }]);
+    const { result } = renderHook(() => useRounds(true), { wrapper: wrapperFor(qc) });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(qc.getQueryData(keys.rounds)).toEqual([{ id: 5 }]);
+    expect(result.current.data).toEqual([{ id: 9 }]);
+    expect(globalThis.fetch).toHaveBeenCalledWith("/api/rounds?deleted=true", expect.any(Object));
   });
 });

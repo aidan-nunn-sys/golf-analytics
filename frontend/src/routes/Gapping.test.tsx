@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import { Gapping } from "./Gapping";
 import { useGapping } from "../api/hooks";
@@ -23,7 +23,7 @@ const mockGappingData: GapRow[] = [
   { club_id: 3, label: "5 Wood", avg_carry: 225, gap_to_next: 12 },
   { club_id: 4, label: "2 Iron", avg_carry: 213, gap_to_next: 7 },
   { club_id: 5, label: "3 Iron", avg_carry: 206, gap_to_next: 5 },
-  { club_id: 6, label: "Putter", avg_carry: null, gap_to_next: null },
+  { club_id: 6, label: "4 Iron", avg_carry: 190, gap_to_next: null },
 ];
 
 const mockUser: User = {
@@ -131,18 +131,17 @@ describe("Gapping", () => {
     renderWithRouter(<Gapping />);
 
     // Putter has gap_to_next = null, so no gap span should render
-    const putterElement = screen.getByText("Putter");
+    const putterElement = screen.getByText("4 Iron");
     // Check that the gap text does not appear next to putter
     const putterRow = putterElement.closest("div");
     expect(putterRow?.textContent).not.toMatch(/gap \d/);
   });
 
-  it("displays dash when avg_carry is null", () => {
-    setup();
+  it("omits clubs without carry measurements", () => {
+    setup([{ club_id: 1, label: "Driver", avg_carry: null, gap_to_next: null, avg_total: 220 }]);
     renderWithRouter(<Gapping />);
-
-    // Putter has avg_carry = null
-    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.queryByText("Driver")).not.toBeInTheDocument();
+    expect(screen.getByText("Log some carry distances to see gapping.")).toBeInTheDocument();
   });
 
   it("converts values to meters when unit_preference is meters", () => {
@@ -170,7 +169,7 @@ describe("Gapping", () => {
     mockedUseAuth.mockReturnValue({ user: mockUser } as unknown as ReturnType<typeof useAuth>);
     renderWithRouter(<Gapping />);
 
-    expect(screen.getByText("Log some shots to see gapping.")).toBeInTheDocument();
+    expect(screen.getByText("Log some carry distances to see gapping.")).toBeInTheDocument();
   });
 
   it("shows loading state when isLoading is true", () => {
@@ -216,4 +215,17 @@ describe("Gapping", () => {
     const smallGapSpan = screen.getByText(/gap 5/);
     expect(smallGapSpan).toHaveClass("text-amber-600");
   });
+});
+
+it("sorts total distances independently and uses total gaps", () => {
+  setup([
+    { club_id: 1, label: "Driver", avg_carry: 200, gap_to_next: 50, avg_total: 210, total_gap_to_next: null },
+    { club_id: 2, label: "3 Wood", avg_carry: 150, gap_to_next: null, avg_total: 240, total_gap_to_next: 30 },
+  ]);
+  renderWithRouter(<Gapping />);
+  fireEvent.click(screen.getByRole("button", { name: "Total" }));
+  expect(screen.getByText("3 Wood").compareDocumentPosition(screen.getByText("Driver"))).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  expect(screen.getByText("240 yd")).toBeInTheDocument();
+  expect(screen.getByText("gap 30")).toBeInTheDocument();
+  expect(screen.queryByText("gap 50")).not.toBeInTheDocument();
 });

@@ -94,3 +94,15 @@ describe("CourseNew", () => {
     );
   });
 });
+
+it("prefills the failed course name and prepares a full scorecard", async () => {
+  const { create } = setup();
+  const user = userEvent.setup();
+  render(<MemoryRouter initialEntries={["/courses/new?name=Raleigh%20Golf%20Association"]}><CourseNew /></MemoryRouter>);
+  expect(screen.getByPlaceholderText("Course name")).toHaveValue("Raleigh Golf Association");
+  await user.click(screen.getByRole("button", { name: "18 holes" }));
+  expect(screen.getAllByPlaceholderText("Par")).toHaveLength(18);
+  await user.click(screen.getByRole("button", { name: "Create course" }));
+  expect(create.mutate).not.toHaveBeenCalled();
+  expect(screen.getByText("Every hole needs a par.")).toBeInTheDocument();
+});

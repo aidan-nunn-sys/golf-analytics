@@ -59,11 +59,14 @@ export const useCourseSearch = (search: string) =>
   useQuery({
     queryKey: keys.courseSearch(search),
     queryFn: () => apiGet<CourseSearchResult[]>(`/courses?search=${encodeURIComponent(search)}`),
-    enabled: search.length > 0,
+    enabled: search.trim().length > 0,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 export const useCourse = (id: number) =>
-  useQuery({ queryKey: keys.course(id), queryFn: () => apiGet<Course>(`/courses/${id}`) });
-export const useRounds = () => useQuery({ queryKey: keys.rounds, queryFn: () => apiGet<Round[]>("/rounds") });
+  useQuery({ queryKey: keys.course(id), queryFn: () => apiGet<Course>(`/courses/${id}`), enabled: id > 0 });
+export const useRounds = (deleted = false) => useQuery({ queryKey: deleted ? [...keys.rounds, "trash"] : keys.rounds, queryFn: () => apiGet<Round[]>(deleted ? "/rounds?deleted=true" : "/rounds") });
 export const useRound = (id: number) =>
   useQuery({ queryKey: keys.round(id), queryFn: () => apiGet<Round>(`/rounds/${id}`) });
 export const useTees = (courseId: number) =>
@@ -72,8 +75,8 @@ export const useTees = (courseId: number) =>
     queryFn: () => apiGet<TeeSet[]>(`/courses/${courseId}/tees`),
     enabled: courseId > 0,
   });
-export const useCourseLibrary = () =>
-  useQuery({ queryKey: keys.courseLibrary, queryFn: () => apiGet<Course[]>("/courses/library") });
+export const useCourseLibrary = (archived = false) =>
+  useQuery({ queryKey: archived ? [...keys.courseLibrary, "archived"] : keys.courseLibrary, queryFn: () => apiGet<Course[]>(archived ? "/courses/library?archived=true" : "/courses/library") });
 export const useHandicap = () =>
   useQuery({ queryKey: keys.handicap, queryFn: () => apiGet<Handicap>("/stats/handicap") });
 export const useRoundStats = (id: number) =>
@@ -182,7 +185,7 @@ export function useCreateRound() {
 export function useUpdateRound(id: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { current_hole?: number; status?: RoundStatus }) => apiSend<Round>("PATCH", `/rounds/${id}`, body),
+    mutationFn: (body: { current_hole?: number; status?: RoundStatus; date?: string; notes?: string }) => apiSend<Round>("PATCH", `/rounds/${id}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.round(id) });
       qc.invalidateQueries({ queryKey: keys.rounds });
@@ -200,13 +203,14 @@ export function useUpdateRoundHole(id: number) {
       ...body
     }: {
       number: number;
-      strokes?: number;
+      strokes?: number | null;
       putts?: number | null;
       fairway_hit?: boolean | null;
       penalties?: number;
     }) => apiSend<Round>("PATCH", `/rounds/${id}/holes/${number}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: keys.round(id) });
+      qc.invalidateQueries({ queryKey: keys.rounds });
       qc.invalidateQueries({ queryKey: ["roundStats"] });
       qc.invalidateQueries({ queryKey: keys.handicap });
       qc.invalidateQueries({ queryKey: keys.roundTrends });
@@ -284,5 +288,53 @@ export function useLogRoundShot(id: number) {
       qc.invalidateQueries({ queryKey: keys.round(id) });
       invalidateStats();
     },
+  });
+}
+
+export const useScorecardSources = () => useQuery({
+  queryKey: ["scorecardSources"],
+  queryFn: () => apiGet<import("./types").ScorecardSource[]>("/scorecard-sources"),
+  staleTime: 60 * 60 * 1000,
+});
+export function usePreviewScorecard(courseId: number) {
+  return useMutation({ mutationFn: (source_id: string) =>
+    apiSend<import("./types").ScorecardPreview>("POST", `/courses/${courseId}/scorecard/preview`, { source_id }) });
+}
+export function useApplyScorecard(courseId: number) {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (body: { token: string; replace_conflicts: boolean }) =>
+    apiSend<Course>("POST", `/courses/${courseId}/scorecard/apply`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.course(courseId) });
+      qc.invalidateQueries({ queryKey: keys.tees(courseId) });
+      qc.invalidateQueries({ queryKey: keys.courseLibrary });
+    },
+  });
+}
+
+
+function useRoundLifecycleInvalidation() {
+  const qc = useQueryClient();
+  return () => {
+    for (const queryKey of [keys.rounds, ["round"], ["roundStats"], keys.handicap,
+      keys.roundTrends, keys.dashboard, keys.gapping, ["clubStats"]]) {
+      qc.invalidateQueries({ queryKey });
+    }
+  };
+}
+
+export function useDeleteRound(id: number) {
+  const invalidate = useRoundLifecycleInvalidation();
+  return useMutation({
+    mutationFn: () => apiSend<void>("DELETE", `/rounds/${id}`),
+    onSuccess: invalidate,
+  });
+}
+
+export function useRestoreRound() {
+  const invalidate = useRoundLifecycleInvalidation();
+  return useMutation({
+    mutationFn: (id: number) => apiSend<Round>("POST", `/rounds/${id}/restore`),
+    onSuccess: invalidate,
   });
 }

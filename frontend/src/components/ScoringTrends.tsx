@@ -24,7 +24,7 @@ export function ScoringTrends() {
   const penalties = recent.reduce((sum, round) => sum + round.penalties, 0);
 
   return (
-    <section aria-labelledby="scoring-trends-title" className="mb-8 space-y-4">
+    <section aria-labelledby="scoring-trends-title" className="panel mb-6 space-y-4">
       <h2 id="scoring-trends-title" className="text-xl font-semibold">Scoring trends</h2>
       <div className="flex gap-2" role="group" aria-label="Round length">
         {[18, 9].map((count) => (

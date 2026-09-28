@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { useRound, useCourse, useRoundStats, useUpdateRoundHole } from "../api/hooks";
 import type { RoundHole } from "../api/types";
 import { AsyncBoundary } from "../components/AsyncBoundary";
 import { StatCard } from "../components/StatCard";
+import { RoundReport } from "../components/RoundReport";
 
 function formatToPar(value: number) {
   return value === 0 ? "E" : value > 0 ? `+${value}` : String(value);
@@ -19,7 +20,7 @@ export function RoundSummary() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const totalStrokes = round?.holes.reduce((sum, h) => sum + (h.strokes ?? 0), 0) ?? 0;
-  const totalPar = round?.holes.reduce((sum, h) => sum + h.par, 0) ?? 0;
+  const totalPar = round?.holes.reduce((sum, h) => sum + (h.strokes == null ? 0 : h.par), 0) ?? 0;
   const vsPar = totalStrokes - totalPar;
   const vsParLabel = formatToPar(vsPar);
   const mutationOptions = {
@@ -59,8 +60,13 @@ export function RoundSummary() {
     <AsyncBoundary loading={isLoading} error={error} isEmpty={!round}>
       {round && (
         <div className="space-y-4">
-          <h1 className="text-lg font-semibold">{course?.name ?? "Round"}</h1>
-          <div className="text-sm text-gray-500">{round.date}</div>
+          <h1 className="text-lg font-semibold">{round.course_name || course?.name || "Round"}</h1>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm text-gray-500">{round.date}</div>
+            <Link className="btn-secondary" to={`/rounds/${round.id}/edit`}>Round details</Link>
+            <Link className="btn-secondary" to={`/rounds/${round.id}?view=shots`}>Shot history &amp; replay</Link>
+          </div>
+          {round.notes && <p className="panel whitespace-pre-wrap break-words text-sm">{round.notes}</p>}
           {actionError && (
             <div className="flex items-center justify-between rounded border border-red-300 bg-red-50 p-2 text-sm text-red-700">
               <span>{actionError}</span>
@@ -69,14 +75,31 @@ export function RoundSummary() {
               </button>
             </div>
           )}
+          <RoundReport holes={round.holes} />
+          <h2 className="text-xl font-semibold">Scorecard</h2>
           <ul className="space-y-1">
             {round.holes.map((h) => (
-              <li key={h.hole_number} className="rounded border bg-white p-2 text-sm">
+              <li key={h.hole_number} id={`hole-${h.hole_number}`} tabIndex={-1} className="scroll-mt-24 rounded border bg-white p-2 text-sm focus:outline-green-700">
                 <div className="flex items-center justify-between">
                   <span>Hole {h.hole_number} (Par {h.par})</span>
                   <span>{h.strokes ?? "—"}</span>
                 </div>
                 <div className="mt-2 flex flex-wrap items-end gap-2">
+                  <label className="text-xs text-gray-500">
+                    Strokes
+                    <input aria-label={`Strokes for hole ${h.hole_number}`} className="mt-1 block w-16 rounded border px-2 py-1 text-sm text-gray-900"
+                      type="number" min={1} defaultValue={h.strokes ?? ""}
+                      onBlur={(event) => {
+                        const raw = event.currentTarget.value;
+                        const strokes = raw === "" ? null : Number(raw);
+                        if (strokes !== null && (!Number.isInteger(strokes) || strokes < 1)) {
+                          setActionError("Enter a valid number of strokes."); return;
+                        }
+                        if (strokes === h.strokes) return;
+                        setActionError(null);
+                        updateHole.mutate({ number: h.hole_number, strokes }, mutationOptions);
+                      }} />
+                  </label>
                   <label className="text-xs text-gray-500">
                     Putts
                     <input

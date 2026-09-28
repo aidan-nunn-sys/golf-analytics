@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 Direction = Literal["left", "straight", "right"]
 Source = Literal["manual", "launch_monitor", "gps"]
@@ -40,11 +40,12 @@ class ShotUpdate(BaseModel):
 
 
 class RoundShotCreate(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
     club_id: int
-    start_lat: float
-    start_lng: float
-    end_lat: float
-    end_lng: float
+    start_lat: float = Field(ge=-90, le=90)
+    start_lng: float = Field(ge=-180, le=180)
+    end_lat: float = Field(ge=-90, le=90)
+    end_lng: float = Field(ge=-180, le=180)
     direction: Direction = "straight"
     accuracy: str | None = None
     hole_number: int | None = None

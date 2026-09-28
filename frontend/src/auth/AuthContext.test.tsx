@@ -74,3 +74,16 @@ describe("AuthContext integration: 401 clears token and redirects", () => {
     expect(screen.queryByText("Secret content")).not.toBeInTheDocument();
   });
 });
+
+it('reopens a remembered account when the server is unreachable', async () => {
+  const { rememberUser } = await import('../offline/storage');
+  setToken('offline-token'); rememberUser(user, 'offline-token');
+  globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+  renderApp(); expect(await screen.findByText('Secret content')).toBeInTheDocument();
+});
+it('does not reuse another token’s offline identity', async () => {
+  const { rememberUser } = await import('../offline/storage');
+  rememberUser(user, 'old-token'); setToken('different-token');
+  globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+  renderApp(); expect(await screen.findByText('Login screen')).toBeInTheDocument();
+});

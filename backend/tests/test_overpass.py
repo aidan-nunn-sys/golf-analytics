@@ -24,7 +24,7 @@ def test_search_courses_parses_name_and_center(monkeypatch):
             "name": "Pebble Beach",
             "location_lat": 36.5,
             "location_lng": -121.9,
-            "hole_count": 0,
+            "hole_count": None,
         }
     ]
 
@@ -63,3 +63,16 @@ def test_fetch_course_holes_matches_green_by_ref(monkeypatch):
 def test_fetch_course_holes_no_hole_data_returns_empty(monkeypatch):
     monkeypatch.setattr(overpass, "_post", lambda base_url, ql: {"elements": []})
     assert overpass.fetch_course_holes("way/1", "http://fake") == []
+
+
+def test_search_does_not_fetch_holes_for_each_result(monkeypatch):
+    def no_hole_lookup(*args):
+        raise AssertionError("Search must not load individual holes")
+
+    monkeypatch.setattr(overpass, "fetch_course_holes", no_hole_lookup)
+    monkeypatch.setattr(overpass, "_post", lambda *args: {"elements": [
+        {"type": "way", "id": 1, "tags": {"name": "Links", "golf:holes": "18"}},
+        {"type": "relation", "id": 2, "tags": {"name": "Other Links"}},
+    ]})
+    courses = overpass.search_courses("Links", "http://fake", (1, 2, 3, 4))
+    assert [c["hole_count"] for c in courses] == [18, None]

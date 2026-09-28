@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TeeSetup } from "./TeeSetup";
 import { useCourse, useTees, useCreateTee, useUpsertTeeRating, useSetStrokeIndex } from "../api/hooks";
 import { courseFixture, holeFixture } from "../testFixtures";
@@ -39,11 +40,11 @@ function setup({ courseData = course, teeData = tees }: { courseData?: Course; t
   mockedUseUpsertTeeRating.mockReturnValue(upsert as unknown as ReturnType<typeof useUpsertTeeRating>);
   mockedUseSetStrokeIndex.mockReturnValue(setSi as unknown as ReturnType<typeof useSetStrokeIndex>);
   const view = render(
-    <MemoryRouter initialEntries={["/courses/7/tees"]}>
+    <QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={["/courses/7/tees"]}>
       <Routes>
         <Route path="/courses/:id/tees" element={<TeeSetup />} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter></QueryClientProvider>,
   );
   return { createTee, upsert, setSi, ...view };
 }
@@ -163,11 +164,11 @@ describe("TeeSetup", () => {
       error: null,
     } as unknown as ReturnType<typeof useTees>);
     rerender(
-      <MemoryRouter initialEntries={["/courses/7/tees"]}>
+      <QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={["/courses/7/tees"]}>
         <Routes>
           <Route path="/courses/:id/tees" element={<TeeSetup />} />
         </Routes>
-      </MemoryRouter>,
+      </MemoryRouter></QueryClientProvider>,
     );
 
     expect(screen.getByLabelText("front-9 Course rating")).toHaveValue(35.5);

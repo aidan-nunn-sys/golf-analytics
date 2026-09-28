@@ -7,6 +7,8 @@ import { useCourse, useRounds, useCreateRound, useTees } from "../api/hooks";
 import type { Round, TeeSet } from "../api/types";
 import { courseFixture, holeFixture, roundFixture } from "../testFixtures";
 
+vi.mock("../auth/AuthContext", () => ({ useAuth: () => ({ user: { id: 1 } }) }));
+
 vi.mock("../api/hooks", () => ({
   useCourse: vi.fn(),
   useRounds: vi.fn(),
@@ -20,12 +22,12 @@ const mockedUseCreateRound = vi.mocked(useCreateRound);
 const mockedUseTees = vi.mocked(useTees);
 
 const course = courseFixture({
-  holes: [holeFixture({ green_lat: 36.51, green_lng: -121.91 })],
+  holes: Array.from({ length: 18 }, (_, i) => holeFixture({ id: i + 1, number: i + 1, green_lat: 36.51, green_lng: -121.91 })),
 });
 
-function renderAt(rounds: Round[], tees: TeeSet[] = []) {
+function renderAt(rounds: Round[], tees: TeeSet[] = [], detail = course) {
   const create = { mutate: vi.fn() };
-  mockedUseCourse.mockReturnValue({ data: course, isLoading: false, error: null } as unknown as ReturnType<typeof useCourse>);
+  mockedUseCourse.mockReturnValue({ data: detail, isLoading: false, error: null } as unknown as ReturnType<typeof useCourse>);
   mockedUseRounds.mockReturnValue({ data: rounds, isLoading: false, error: null } as unknown as ReturnType<typeof useRounds>);
   mockedUseCreateRound.mockReturnValue(create as unknown as ReturnType<typeof useCreateRound>);
   mockedUseTees.mockReturnValue({ data: tees, isLoading: false, error: null } as unknown as ReturnType<typeof useTees>);
@@ -51,7 +53,7 @@ describe("CourseDetail", () => {
     renderAt([]);
     expect(screen.getByText("Pebble Beach")).toBeInTheDocument();
     expect(screen.getByText("Hole 1")).toBeInTheDocument();
-    expect(screen.getByText("Par 4")).toBeInTheDocument();
+    expect(screen.getAllByText("Par 4")).toHaveLength(18);
   });
 
   it("offers Start round when no in-progress round exists on this course", async () => {
@@ -90,4 +92,13 @@ describe("CourseDetail", () => {
     expect(screen.getByRole("link", { name: "Set up tees" })).toHaveAttribute("href", "/courses/7/tees");
     expect(screen.getByRole("link", { name: "Enter a past round" })).toHaveAttribute("href", "/rounds/new?course=7");
   });
+});
+
+it("blocks a full round on a one-hole course and links to import", async () => {
+  const { create } = renderAt([], [], courseFixture({ holes: [holeFixture()] }));
+  expect(screen.getByRole("button", { name: "Start round" })).toBeDisabled();
+  expect(screen.getByText("Finish your scorecard first")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Complete course setup" })).toHaveAttribute("href", "/courses/7/import");
+  await userEvent.click(screen.getByRole("button", { name: "Start round" }));
+  expect(create.mutate).not.toHaveBeenCalled();
 });

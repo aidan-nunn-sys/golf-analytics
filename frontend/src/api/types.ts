@@ -45,7 +45,18 @@ export interface Shot {
   created_at: string;
 }
 
+export interface DistanceSummary {
+  count: number;
+  average: number | null;
+  median: number | null;
+  consistency: number | null;
+  minimum: number | null;
+  maximum: number | null;
+  direction: { left: number; straight: number; right: number };
+}
+
 export interface ClubStats {
+  total?: DistanceSummary;
   count: number;
   avg_carry: number | null;
   median_carry: number | null;
@@ -56,6 +67,10 @@ export interface ClubStats {
 }
 
 export interface GapRow {
+  avg_total?: number | null;
+  total_gap_to_next?: number | null;
+  carry_count?: number;
+  total_count?: number;
   club_id: number;
   label: string;
   avg_carry: number | null;
@@ -89,6 +104,10 @@ export interface Hole {
 }
 
 export interface Course {
+  archived_at?: string | null;
+  scorecard_source?: string | null;
+  scorecard_imported_at?: string | null;
+  scorecard_urls?: string[] | null;
   id: number;
   name: string;
   osm_id: string | null;
@@ -104,7 +123,7 @@ export interface CourseSearchResult {
   name: string;
   location_lat: number | null;
   location_lng: number | null;
-  hole_count: number;
+  hole_count: number | null;
 }
 
 export interface ManualHoleInput {
@@ -129,7 +148,16 @@ export interface RoundHoleInput {
   penalties?: number;
 }
 
+export interface GreenNote { break_direction: "unknown" | "left" | "right" | "straight"; pace: "unknown" | "uphill" | "downhill" | "level"; note: string; }
+
 export interface Round {
+  green_notes?: Record<string, GreenNote>;
+  revision?: number;
+  course_name?: string | null;
+  tee_name?: string | null;
+  hole_yardages?: Record<string, number>;
+  notes: string;
+  deleted_at: string | null;
   id: number;
   course_id: number;
   date: string;
@@ -163,6 +191,7 @@ export interface TeeRating {
 }
 
 export interface TeeSet {
+  hole_yardages?: Record<string, number>;
   id: number;
   course_id: number;
   name: string;
@@ -223,5 +252,17 @@ export interface RoundTrend {
     putts: number | null;
     gir_pct: number | null;
     fairway_pct: number | null;
+  };
+}
+
+export interface ScorecardSource { id: string; name: string; address: string; osm_id: string; }
+export interface ScorecardPreview {
+  token: string;
+  conflicts: string[];
+  card: {
+    source_id: string; course_name: string; source_urls: string[]; retrieved_at: string;
+    notes: string[];
+    holes: { number: number; par: number; stroke_index: number }[];
+    tees: { key: string; name: string; yardage: number; ratings: { scope: RatingScope; course_rating: number; slope_rating: number; par: number }[] }[];
   };
 }

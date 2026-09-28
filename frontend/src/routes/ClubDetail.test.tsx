@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import { ClubDetail } from "./ClubDetail";
 import { useClubStats, useClubs } from "../api/hooks";
@@ -113,7 +113,7 @@ describe("ClubDetail", () => {
     setup(emptyStats);
     renderWithRouter(<ClubDetail />);
 
-    expect(screen.getByText("No shots logged for this club yet.")).toBeInTheDocument();
+    expect(screen.getByText("No carry distances logged for this club yet.")).toBeInTheDocument();
   });
 
   it("shows loading state when isLoading is true", () => {
@@ -169,4 +169,24 @@ describe("ClubDetail", () => {
     const meters = screen.getByText("130.3 m");
     expect(meters).toBeInTheDocument();
   });
+});
+
+it("switches to independent total measurements and converts them to meters", () => {
+  setup({ ...mockStats, total: { count: 2, average: 200, median: 201, consistency: 10, minimum: 190, maximum: 210, direction: { left: 1, straight: 0, right: 1 } } }, mockClubs, { ...mockUser, unit_preference: "meters" });
+  renderWithRouter(<ClubDetail />);
+  fireEvent.click(screen.getByRole("button", { name: "Total" }));
+  expect(screen.getByText("Avg total")).toBeInTheDocument();
+  expect(screen.getByText("182.9 m")).toBeInTheDocument();
+  expect(screen.getByText(/Direction — left 1 · straight 0 · right 1/)).toBeInTheDocument();
+  expect(screen.queryByText("Avg carry")).not.toBeInTheDocument();
+});
+
+it("keeps the selector usable when a GPS-only club has no carry distances", () => {
+  setup({ ...mockStats, count: 0, avg_carry: null, total: { count: 1, average: 200, median: 200, consistency: 0, minimum: 200, maximum: 200, direction: { left: 0, straight: 1, right: 0 } } });
+  renderWithRouter(<ClubDetail />);
+  expect(screen.getByText("No carry distances logged for this club yet.")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Total" }));
+  expect(screen.getByText("Avg total")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Carry" }));
+  expect(screen.getByText("No carry distances logged for this club yet.")).toBeInTheDocument();
 });

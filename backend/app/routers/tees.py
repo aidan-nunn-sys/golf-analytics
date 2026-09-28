@@ -1,17 +1,17 @@
-"""Tee sets, their per-scope ratings, and course stroke indexes.
+"""Tee sets, per-scope ratings, and course stroke indexes.
 
-Course Rating, Slope Rating and stroke index are not in OpenStreetMap and
-have no open API (spec 3.1), so they are entered here by hand. Validation is
-strict on purpose: catching a transposed stroke index at entry is far cheaper
-than discovering it inside a differential months later.
+Configure these manually or import them from official scorecards using the
+preview/apply routes. OpenStreetMap geometry alone does not supply ratings.
+Validation catches invalid setup before it reaches the handicap calculation.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user
-from app.models import Course, Hole, TeeRating, TeeSet, User
+from app.models import Course, Hole, Round, TeeRating, TeeSet, User
 from app.schemas.tee import (
     Scope,
     StrokeIndexIn,
@@ -50,6 +50,14 @@ def _tee_or_404(db: Session, tee_id: int) -> TeeSet:
     return tee
 
 
+def _validate_yardages(db: Session, course_id: int, yardages: dict, total: int | None):
+    numbers = set(db.scalars(select(Hole.number).where(Hole.course_id == course_id)))
+    if any(int(n) not in numbers for n in yardages):
+        raise HTTPException(422, "Tee yardages must refer to configured holes")
+    if yardages and len(yardages) == len(numbers) and total is not None and sum(yardages.values()) != total:
+        raise HTTPException(422, "Total yardage must match the hole yardages")
+
+
 @router.get("/courses/{course_id}/tees", response_model=list[TeeSetOut])
 def list_tees(
     course_id: int,
@@ -72,7 +80,8 @@ def create_tee(
     user: User = Depends(get_current_user),
 ) -> TeeSet:
     _course_or_404(db, course_id)
-    tee = TeeSet(course_id=course_id, name=payload.name.strip(), yardage=payload.yardage)
+    _validate_yardages(db, course_id, payload.hole_yardages, payload.yardage)
+    tee = TeeSet(course_id=course_id, name=payload.name.strip(), yardage=payload.yardage, hole_yardages=payload.hole_yardages)
     db.add(tee)
     db.commit()
     db.refresh(tee)
@@ -87,7 +96,9 @@ def update_tee(
     user: User = Depends(get_current_user),
 ) -> TeeSet:
     tee = _tee_or_404(db, tee_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    values = payload.model_dump(exclude_unset=True)
+    _validate_yardages(db, tee.course_id, values.get("hole_yardages", tee.hole_yardages), values.get("yardage", tee.yardage))
+    for field, value in values.items():
         setattr(tee, field, value.strip() if isinstance(value, str) else value)
     db.commit()
     db.refresh(tee)
@@ -100,7 +111,10 @@ def delete_tee(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> None:
-    db.delete(_tee_or_404(db, tee_id))
+    tee = _tee_or_404(db, tee_id)
+    for round in db.scalars(select(Round).where(Round.tee_set_id == tee_id)):
+        round.tee_set_id = None
+    db.delete(tee)
     db.commit()
 
 

@@ -1,3 +1,81 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+  body { @apply m-0 bg-slate-50 text-slate-900 antialiased; }
+  h1, h2, h3 { @apply tracking-tight; }
+  h1 { @apply text-2xl font-bold; }
+  button, input, select, textarea { font: inherit; }
+  button, select, input:not([type="checkbox"]):not([type="radio"]) { min-height: 44px; }
+  input, select, textarea { max-width: 100%; }
+  button:disabled { @apply cursor-not-allowed opacity-50; }
+  :focus-visible { outline: 3px solid #0d9488; outline-offset: 3px; }
+  ::selection { @apply bg-emerald-100 text-emerald-950; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+}
+@layer components {
+  .panel { @apply rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6; }
+  .btn-primary { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-800 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-900 disabled:opacity-50; }
+  .btn-secondary { @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50; }
+  .field { @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-base text-slate-900; }
+  .eyebrow { @apply text-xs font-bold uppercase tracking-widest text-emerald-700; }
+  .notice { @apply rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-950; }
+  .error-notice { @apply rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-relaxed text-red-800; }
+}
+
+/* On-course tools: readable in daylight, spacious under a thumb. */
+.play-shell { max-width: 1120px; margin: 0 auto; display: grid; gap: 1.1rem; }
+.play-heading { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:.35rem 0; }
+.play-eyebrow { color:#497263; text-transform:uppercase; letter-spacing:.15em; font-size:.67rem; font-weight:750; }
+.play-total { display:flex; flex-direction:column; align-items:center; gap:.15rem; min-width:5rem; border:1px solid #d8e5dc; border-radius:1.25rem; padding:.65rem; background:white; color:#104c37; }
+.play-sync { display:flex; align-items:center; gap:.5rem; border:1px solid #d9e8df; border-radius:.8rem; padding:.65rem .85rem; color:#476455; background:#f2f8f3; font-size:.72rem; }
+.play-content { display:grid; gap:1.25rem; }
+.play-distance { position:relative; overflow:hidden; border-radius:1.6rem; padding:1.35rem; color:white; background:radial-gradient(ellipse at top right,#25694d 0%,#103e30 42%,#07291f 100%); box-shadow:0 12px 30px #103e3012; }
+.play-target { position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; }
+.play-target span { position:absolute; border:1px solid #c0ebd011; border-radius:50%; width:12rem; height:12rem; }
+.play-target span:nth-child(2) { width:17rem; height:17rem; }
+.play-target span:nth-child(3) { width:23rem; height:23rem; }
+.play-card { border:1px solid #e1e8e3; border-radius:1.4rem; padding:1.25rem; background:#fff; box-shadow:0 3px 16px #173b2510; }
+.play-tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.3rem; border-radius:1rem; background:#e9efeb; padding:.3rem; }
+.play-tabs button { min-height:2.75rem; border-radius:.75rem; font-size:.85rem; font-weight:700; color:#617366; }
+.play-tabs .active { background:white; color:#134e38; box-shadow:0 2px 6px #00000009; }
+.play-preset { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.15rem; min-height:4.4rem; background:#f7f9f7; border:1px solid #e2e9e3; border-radius:1rem; color:#456052; }
+.play-choice { min-height:2.85rem; border:1px solid #dce5de; border-radius:.8rem; background:white; padding:.5rem; font-size:.75rem; font-weight:650; color:#496050; }
+.play-selected { background:#154d37!important; border-color:#154d37!important; color:white!important; }
+.play-stepper { display:flex; align-items:center; border:1px solid #dce5de; border-radius:.85rem; overflow:hidden; }
+.play-stepper button { width:2.75rem; min-height:3.4rem; font-size:1.25rem; flex-shrink:0; color:#346448; background:#f5f8f5; }
+.play-stepper input { width:100%; min-width:0; text-align:center; font-size:1.65rem; font-weight:650; appearance:textfield; background:white; }
+.play-stepper input::-webkit-inner-spin-button { -webkit-appearance:none; }
+.play-small-button { width:2.75rem; min-height:2.75rem; border:1px solid #e1e8e3; border-radius:.75rem; font-size:1.2rem; }
+.play-next { width:100%; min-height:3.5rem; border-radius:1rem; background:#154d37; color:white; font-weight:750; box-shadow:0 6px 16px #154d3720; }
+.play-hole { min-height:3.5rem; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:.15rem; border:1px solid #dce5de; border-radius:.7rem; }
+.play-shell button:disabled { opacity:.4; cursor:not-allowed; }
+.play-shell button:focus-visible,.play-shell input:focus-visible { outline:3px solid #84cc16; outline-offset:2px; }
+@media(min-width:1100px) { .play-content { grid-template-columns:minmax(0,1fr) minmax(0,1.1fr); align-items:start; } .play-distance { padding:1.75rem; } }
+@media(max-width:380px) { .play-card { padding:1rem; } .play-stepper button { width:2.25rem; } }
+@media(max-width:767px) {
+  .play-mode > header, .play-mode > nav { display:none; }
+  .play-mode #main-content { padding-top:1.1rem; padding-bottom:2rem; }
+  .play-tabs { position:sticky; top:.5rem; z-index:10; box-shadow:0 2px 10px #173b2510; }
+}
+
+/* Score-first phone layout: keep the essential actions within easy reach. */
+.play-distance-compact { padding:.6rem .85rem; border-radius:1rem; }
+@media(max-width:1099px) {
+ .play-scoring { gap:.6rem; }
+ .play-scoring .play-heading h1 { margin-top:.2rem; font-size:1.7rem; }
+ .play-scoring .play-heading p { margin-top:.2rem; }
+ .play-scoring .play-content { gap:.6rem; }
+ .play-scoring .play-content > div { gap:.6rem; }
+ .play-scoring .play-content > div > p { display:none; }
+ .play-scoring .play-card { padding:.85rem; }
+ .play-scoring .play-card > * + * { margin-top:.7rem; }
+ .play-scoring .play-card .play-eyebrow { display:none; }
+ .play-scoring .play-preset { min-height:3.5rem; }
+ .play-scoring .play-stepper button { min-height:2.75rem; }
+ .play-scoring .play-next { min-height:2.8rem; }
+}

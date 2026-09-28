@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { ApiError } from "../api/client";
 import { Login } from "./Login";
 import { useAuth } from "../auth/AuthContext";
 
@@ -42,7 +43,7 @@ describe("Login", () => {
   });
 
   it("shows an error message when login fails", async () => {
-    const login = vi.fn().mockRejectedValue(new Error("nope"));
+    const login = vi.fn().mockRejectedValue(new ApiError(401, "Incorrect email or password"));
     mockedUseAuth.mockReturnValue({ user: null, loading: false, login, logout: vi.fn() });
     const user = userEvent.setup();
     renderLogin();

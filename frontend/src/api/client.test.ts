@@ -33,3 +33,8 @@ describe("client", () => {
     expect(handler).toHaveBeenCalledOnce();
   });
 });
+
+it("presents validation errors as readable field messages", async () => {
+  globalThis.fetch = mockFetch(422, { detail: [{ loc: ["body", "name"], msg: "String should have at least 1 character" }] }) as never;
+  await expect(apiGet("/courses")).rejects.toThrow("name: String should have at least 1 character");
+});

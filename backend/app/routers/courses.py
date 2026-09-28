@@ -43,6 +43,7 @@ def _course_out(db: Session, course: Course) -> CourseOut:
         select(Hole).where(Hole.course_id == course.id).order_by(Hole.number)
     ).all()
     return CourseOut(
+        archived_at=course.archived_at,
         id=course.id,
         name=course.name,
         osm_id=course.osm_id,
@@ -50,6 +51,9 @@ def _course_out(db: Session, course: Course) -> CourseOut:
         location_lat=course.location_lat,
         location_lng=course.location_lng,
         imported_at=course.imported_at,
+        scorecard_source=course.scorecard_source,
+        scorecard_imported_at=course.scorecard_imported_at,
+        scorecard_urls=course.scorecard_urls,
         holes=[HoleOut.model_validate(h) for h in holes],
     )
 
@@ -69,7 +73,9 @@ def search_courses(
         # An unbounded name query makes Overpass scan every golf course on
         # Earth and time out, so geocode the term to bound it first.
         with _upstream():
-            bbox = nominatim.geocode(search, settings.nominatim_base_url)
+            matches, bbox = nominatim.resolve(search, settings.nominatim_base_url)
+        if matches:
+            return [CourseSearchResult(**r) for r in matches]
         if bbox is None:
             return []
 
@@ -119,8 +125,7 @@ def import_course(
         )
     course = Course(name=payload.name, import_source="manual")
     db.add(course)
-    db.commit()
-    db.refresh(course)
+    db.flush()
     for h in payload.holes:
         db.add(Hole(course_id=course.id, number=h.number, par=h.par))
     db.commit()
@@ -129,10 +134,11 @@ def import_course(
 
 @router.get("/library", response_model=list[CourseOut])
 def list_library(
+    archived: bool = False,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> list[CourseOut]:
-    courses = db.scalars(select(Course).order_by(Course.name)).all()
+    courses = db.scalars(select(Course).where(Course.archived_at.is_not(None) if archived else Course.archived_at.is_(None)).order_by(Course.name)).all()
     return [_course_out(db, c) for c in courses]
 
 

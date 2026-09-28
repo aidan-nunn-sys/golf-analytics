@@ -1,9 +1,11 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import { offlineApp } from './pwa.js'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), offlineApp()],
+  define: { 'import.meta.env.VITE_BUILD_ID': JSON.stringify(new Date().toISOString()) },
   server: {
     proxy: {
       '/api': {

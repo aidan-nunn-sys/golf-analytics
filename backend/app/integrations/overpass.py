@@ -42,14 +42,14 @@ def search_courses(
         tags = el.get("tags", {})
         center = el.get("center") or {"lat": el.get("lat"), "lon": el.get("lon")}
         osm_id = f"{el['type']}/{el['id']}"
-        holes = fetch_course_holes(osm_id, base_url)
         results.append(
             {
                 "osm_id": osm_id,
                 "name": tags.get("name", "Unknown course"),
                 "location_lat": center.get("lat"),
                 "location_lng": center.get("lon"),
-                "hole_count": len(holes),
+                # Load individual holes only when the user imports this course.
+                "hole_count": int(tags["golf:holes"]) if str(tags.get("golf:holes", "")).isdigit() else None,
             }
         )
     return results

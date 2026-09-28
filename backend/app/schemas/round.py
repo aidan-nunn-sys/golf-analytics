@@ -1,9 +1,18 @@
-from datetime import date as date_type
-from typing import Literal
+from datetime import date as date_type, datetime
+from typing import Literal, Annotated
 
 from pydantic import BaseModel, Field, model_validator
 
 RoundStatus = Literal["in_progress", "completed", "abandoned"]
+
+
+class GreenNote(BaseModel):
+    break_direction: Literal['unknown', 'left', 'right', 'straight'] = 'unknown'
+    pace: Literal['unknown', 'uphill', 'downhill', 'level'] = 'unknown'
+    note: str = Field(default='', max_length=500)
+
+
+GreenNotes = dict[Annotated[str, Field(pattern=r'^(?:[1-9]|1[0-8])$')], GreenNote]
 
 
 class RoundHoleOut(BaseModel):
@@ -16,6 +25,11 @@ class RoundHoleOut(BaseModel):
 
 
 class RoundOut(BaseModel):
+    green_notes: GreenNotes = Field(default_factory=dict)
+    revision: int = 1
+    course_name: str | None = None
+    tee_name: str | None = None
+    hole_yardages: dict[str, int] = Field(default_factory=dict)
     id: int
     course_id: int
     date: date_type
@@ -27,6 +41,8 @@ class RoundOut(BaseModel):
     course_rating: float | None
     slope_rating: int | None
     course_par: int | None
+    notes: str
+    deleted_at: datetime | None
     holes: list[RoundHoleOut]
 
 
@@ -36,6 +52,12 @@ class RoundHoleIn(BaseModel):
     putts: int | None = Field(default=None, ge=0)
     fairway_hit: bool | None = None
     penalties: int = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def valid_score_parts(self):
+        if self.strokes is not None and (self.putts or 0) + self.penalties > self.strokes:
+            raise ValueError("Putts and penalties cannot exceed total strokes")
+        return self
 
 
 class RoundCreate(BaseModel):
@@ -47,6 +69,12 @@ class RoundCreate(BaseModel):
     nine: Literal["front", "back"] | None = None
     status: RoundStatus = "in_progress"
     holes: list[RoundHoleIn] | None = None
+
+    @model_validator(mode="after")
+    def unique_holes(self):
+        if self.holes and len({h.number for h in self.holes}) != len(self.holes):
+            raise ValueError("Each hole number must appear once")
+        return self
 
     @model_validator(mode="after")
     def check_date(self):
@@ -75,8 +103,17 @@ class RoundCreate(BaseModel):
 
 
 class RoundUpdate(BaseModel):
-    current_hole: int | None = None
+    green_notes: GreenNotes | None = None
+    date: date_type | None = None
+    notes: str | None = Field(default=None, max_length=4000)
+    current_hole: int | None = Field(default=None, ge=1, le=18)
     status: RoundStatus | None = None
+
+    @model_validator(mode="after")
+    def reject_nulls(self):
+        if any(getattr(self, field) is None for field in self.model_fields_set):
+            raise ValueError("Round fields cannot be null")
+        return self
 
 
 class RoundHolePatch(BaseModel):
@@ -84,3 +121,9 @@ class RoundHolePatch(BaseModel):
     putts: int | None = Field(default=None, ge=0)
     fairway_hit: bool | None = None
     penalties: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def nonnull_penalties(self):
+        if "penalties" in self.model_fields_set and self.penalties is None:
+            raise ValueError("Penalties cannot be null; use zero")
+        return self
